@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 from datetime import datetime
 import requests
@@ -22,9 +22,9 @@ except Exception as e:
     print("⚠️ No se pudo cargar OpenAI:", e)
 
 # ==============================
-# CONFIGURACIÓN DEL BACKEND NODE
+# CONFIGURACIÓN DEL BACKEND
 # ==============================
-BACKEND_URL = os.getenv("BACKEND_URL", "https://api-firebase-auth.onrender.com/api/transactions")
+BACKEND_URL = os.getenv("BACKEND_URL")
 
 # ==============================
 # CONFIGURACIÓN DE FASTAPI
@@ -35,7 +35,6 @@ app = FastAPI(title="IA Financiera - Clasificador de Gastos")
 # MODELOS DE DATOS
 # ==============================
 class MensajeUsuario(BaseModel):
-    token: str
     mensaje: str
 
 
@@ -53,21 +52,21 @@ class ClasificacionRespuesta(BaseModel):
 def clasificador_local(mensaje: str):
     mensaje = mensaje.lower()
     categorias = {
-        "alimentación": ["comida", "restaurante", "café", "taco", "hamburguesa"],
-        "transporte": ["gasolina", "uber", "taxi", "camión", "pasaje", "auto"],
-        "entretenimiento": ["cine", "película", "concierto", "juego", "netflix"],
-        "salud": ["medicina", "doctor", "farmacia", "dentista"],
-        "educación": ["libro", "colegiatura", "curso", "escuela"],
-        "hogar": ["renta", "luz", "agua", "internet", "super"],
+        "Food": ["comida", "restaurante", "café", "taco", "hamburguesa"],
+        "Transport": ["gasolina", "uber", "taxi", "camión", "pasaje", "auto"],
+        "Entertainment": ["cine", "película", "concierto", "juego", "netflix"],
+        "Health": ["medicina", "doctor", "farmacia", "dentista"],
+        "Education": ["libro", "colegiatura", "curso", "escuela"],
+        "Home": ["renta", "luz", "agua", "internet", "super"]
     }
 
-    categoria = "Otros"
+    categoria = "Other"
     for cat, palabras in categorias.items():
         if any(p in mensaje for p in palabras):
             categoria = cat
             break
 
-    monto = 0
+    monto = 0.0
     for palabra in mensaje.split():
         if palabra.isdigit():
             monto = float(palabra)
@@ -81,15 +80,14 @@ def clasificador_local(mensaje: str):
 # ==============================
 # FUNCIÓN PRINCIPAL
 # ==============================
-def clasificar_gasto(token: str, mensaje: str):
+def clasificar_gasto(mensaje: str, token: str):
     ahora = datetime.now()
 
-    # ===== CLASIFICACIÓN (OpenAI o local) =====
     if client:
         prompt = f"""
         Analiza este texto: "{mensaje}".
-        Devuelve un JSON con: categoria, monto y descripcion.
-        Categorías posibles: Alimentación, Transporte, Entretenimiento, Salud, Educación, Hogar, Otros.
+        Devuelve un JSON con: category, amount y description.
+        Las categorías posibles son: Food, Transport, Entertainment, Health, Education, Home, Other.
         """
         try:
             respuesta = client.chat.completions.create(
@@ -105,69 +103,44 @@ def clasificar_gasto(token: str, mensaje: str):
         except Exception as e:
             print(f"⚠️ Error con OpenAI ({e}). Usando clasificador local.")
             categoria, monto, descripcion = clasificador_local(mensaje)
-            data = {"categoria": categoria, "monto": monto, "descripcion": descripcion}
+            data = {"category": categoria, "amount": monto, "description": descripcion}
     else:
-        print("⚠️ OpenAI no está disponible. Usando clasificador local.")
+        print("⚠️ OpenAI no disponible. Usando clasificador local.")
         categoria, monto, descripcion = clasificador_local(mensaje)
-        data = {"categoria": categoria, "monto": monto, "descripcion": descripcion}
+        data = {"category": categoria, "amount": monto, "description": descripcion}
 
-    # ===== CONVERSIÓN AL FORMATO DEL BACKEND =====
-    traducciones = {
-        "alimentación": "Food",
-        "transporte": "Transport",
-        "entretenimiento": "Entertainment",
-        "salud": "Health",
-        "educación": "Education",
-        "hogar": "Home",
-        "otros": "Other"
-    }
+    # Estructura que espera el backend Node
+    data["type"] = "expense"
+    data["date"] = ahora.strftime("%Y-%m-%dT%H:%M:%S")
 
-    json_backend = {
-        "type": "expense",
-        "amount": round(float(data.get("monto", 0)), 2),
-        "category": traducciones.get(data.get("categoria", "").lower(), "Other"),
-        "description": data.get("descripcion", ""),
-        "date": ahora.strftime("%Y-%m-%dT%H:%M:%S")
-    }
-
-    print("📤 JSON a enviar al backend:")
-    print(json.dumps(json_backend, indent=4, ensure_ascii=False))
-
-    # ===== CABECERAS DE AUTORIZACIÓN =====
+    # Envío al backend
     headers = {
-        "Authorization": token,   # se envía tal cual, ya incluye "Bearer "
+        "Authorization": token,
         "Content-Type": "application/json"
     }
 
-    print("🔐 Enviando con token:", token)
-
-    # ===== ENVÍO AL BACKEND NODE =====
     try:
-        response = requests.post(BACKEND_URL, json=json_backend, headers=headers)
+        response = requests.post(BACKEND_URL, json=data, headers=headers)
         if response.status_code in [200, 201]:
-            print(f"✅ JSON enviado correctamente ({response.status_code})")
+            print(f"✅ JSON enviado al backend ({response.status_code})")
         else:
-            print(f"⚠️ Error del backend ({response.status_code}): {response.text}")
-            raise HTTPException(status_code=response.status_code, detail=response.text)
+            print(f"⚠️ Error del backend: {response.status_code} - {response.text}")
     except Exception as ex:
         print(f"❌ No se pudo conectar al backend: {ex}")
-        raise HTTPException(status_code=500, detail="Error al conectar con el backend")
 
-    return json_backend
+    return data
 
 
 # ==============================
-# ENDPOINT PRINCIPAL
+# ENDPOINT
 # ==============================
 @app.post("/clasificar_gasto", response_model=ClasificacionRespuesta)
-async def clasificar_endpoint(payload: MensajeUsuario):
-    resultado = clasificar_gasto(payload.token, payload.mensaje)
+async def clasificar_endpoint(payload: MensajeUsuario, authorization: str = Header(...)):
+    """
+    Recibe el token Bearer por cabecera y el mensaje en el body.
+    """
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token inválido o ausente en Authorization header")
+
+    resultado = clasificar_gasto(payload.mensaje, authorization)
     return resultado
-
-
-# ==============================
-# RUTA DE PRUEBA
-# ==============================
-@app.get("/")
-def home():
-    return {"message": "🚀 IA Financiera lista para recibir token y mensaje"}
