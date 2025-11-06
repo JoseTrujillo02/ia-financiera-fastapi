@@ -103,11 +103,11 @@ def clasificar_gasto(mensaje: str, token: str):
         except Exception as e:
             print(f"⚠️ Error con OpenAI ({e}). Usando clasificador local.")
             categoria, monto, descripcion = clasificador_local(mensaje)
-            data = {"category": categoria, "amount": monto, "description": descripcion}
+            data = {"category": categoria, "amount": monto, "descripcion": descripcion}
     else:
         print("⚠️ OpenAI no disponible. Usando clasificador local.")
         categoria, monto, descripcion = clasificador_local(mensaje)
-        data = {"category": categoria, "amount": monto, "description": descripcion}
+        data = {"category": categoria, "amount": monto, "descripcion": descripcion}
 
     # Estructura que espera el backend Node
     data["type"] = "expense"
