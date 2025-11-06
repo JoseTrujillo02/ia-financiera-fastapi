@@ -42,7 +42,7 @@ class ClasificacionRespuesta(BaseModel):
     type: str
     amount: float
     category: str
-    description: str
+    descripcion: str
     date: str
 
 
