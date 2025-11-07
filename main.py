@@ -77,7 +77,11 @@ def clasificador_local(mensaje: str):
     
     monto = 0.0
     for patron in patrones:
-        match = re.
+        match = re.search(patron, mensaje)
+        if match:
+            monto_str = match.group(1).replace(',', '')
+            monto = float(monto_str)
+            break
 
     descripcion = mensaje.capitalize()
     return categoria, monto, descripcion
