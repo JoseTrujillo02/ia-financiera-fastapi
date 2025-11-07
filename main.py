@@ -54,15 +54,15 @@ def clasificador_local(mensaje: str):
     mensaje_lower = mensaje.lower()
     
     categorias = {
-        "Food": ["comida", "restaurante", "café", "taco", "hamburguesa", "comer", "almuerzo", "cena", "desayuno", "alimento"],
-        "Transport": ["gasolina", "uber", "taxi", "camión", "pasaje", "auto", "transporte"],
-        "Entertainment": ["cine", "película", "concierto", "juego", "netflix", "entretenimiento"],
-        "Health": ["medicina", "doctor", "farmacia", "dentista", "salud"],
-        "Education": ["libro", "colegiatura", "curso", "escuela", "educación"],
-        "Home": ["renta", "luz", "agua", "internet", "super", "casa", "hogar"]
+        "Comida": ["comida", "restaurante", "café", "taco", "hamburguesa", "comer", "almuerzo", "cena", "desayuno", "alimento"],
+        "Transporte": ["gasolina", "uber", "taxi", "camión", "pasaje", "auto", "transporte"],
+        "Entertenimiento": ["cine", "película", "concierto", "juego", "netflix", "entretenimiento"],
+        "Salud": ["medicina", "doctor", "farmacia", "dentista", "salud"],
+        "Educacion": ["libro", "colegiatura", "curso", "escuela", "educación"],
+        "Hogar": ["renta", "luz", "agua", "internet", "super", "casa", "hogar"]
     }
 
-    categoria = "Other"
+    categoria = "Otros"
     for cat, palabras in categorias.items():
         if any(p in mensaje_lower for p in palabras):
             categoria = cat
