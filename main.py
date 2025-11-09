@@ -5,6 +5,7 @@ import requests
 import json
 import os
 import re
+import unicodedata
 from dotenv import load_dotenv
 
 # ==============================
@@ -30,7 +31,7 @@ BACKEND_URL = os.getenv("BACKEND_URL")
 # ==============================
 # CONFIGURACIÓN DE FASTAPI
 # ==============================
-app = FastAPI(title="IA Financiera - Clasificador de Gastos e Ingresos")
+app = FastAPI(title="IA Financiera - Clasificador de Gastos e Ingresos (acentos tolerantes)")
 
 # ==============================
 # MODELOS DE DATOS
@@ -48,70 +49,94 @@ class ClasificacionRespuesta(BaseModel):
 
 
 # ==============================
+# FUNCIONES AUXILIARES
+# ==============================
+def eliminar_acentos(texto: str) -> str:
+    """Normaliza texto eliminando tildes y diacríticos."""
+    return "".join(
+        c for c in unicodedata.normalize("NFD", texto)
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+# ==============================
 # CLASIFICADOR LOCAL DE RESPALDO
 # ==============================
 def clasificador_local(mensaje: str):
-    mensaje_lower = mensaje.lower()
+    # Texto original y normalizado
+    mensaje_original = mensaje.strip()
+    mensaje_sin_acentos = eliminar_acentos(mensaje_original.lower())
 
     # --- Detectar tipo (gasto o ingreso) ---
     palabras_ingreso = [
-        "recibí", "me pagaron", "me depositaron", "gané", "ingresó", "ingreso", "entrada", "vendí", "obtuve", "cobré"
+        "recibi", "me pagaron", "me depositaron", "gane", "ingreso", "ingresaron",
+        "entrada", "vendi", "obtuve", "cobre", "me transfirieron", "me enviaron", "deposito"
     ]
     palabras_gasto = [
-        "gasté", "pagué", "compré", "invertí", "deposité", "saqué", "transferí", "doné", "consumí", "pagado", "adquirí"
+        "gaste", "pague", "compre", "inverti", "deposite", "saque", "transfiri",
+        "done", "consumi", "pagado", "adquiri", "use", "realice un pago"
     ]
 
     tipo = "expense"
-    if any(p in mensaje_lower for p in palabras_ingreso):
+    if any(p in mensaje_sin_acentos for p in palabras_ingreso):
         tipo = "income"
-    elif any(p in mensaje_lower for p in palabras_gasto):
+    elif any(p in mensaje_sin_acentos for p in palabras_gasto):
         tipo = "expense"
 
     # --- Categorías ampliadas ---
     categorias = {
         "Comida": [
-            "comida", "restaurante", "café", "taco", "hamburguesa", "almuerzo", "cena", "desayuno",
-            "pan", "super", "mercado", "bebida", "antojito", "snack", "almuerzos", "lunch"
+            "comida", "restaurante", "cafe", "taco", "hamburguesa", "almuerzo",
+            "cena", "desayuno", "pan", "super", "mercado", "bebida", "antojito",
+            "snack", "almuerzos", "lunch", "pizzas", "pollo", "carne", "postre"
         ],
         "Transporte": [
-            "gasolina", "uber", "taxi", "camión", "metro", "pasaje", "auto", "vehículo",
-            "estacionamiento", "peaje", "transporte", "camioneta", "bicicleta", "bus", "carro"
+            "gasolina", "uber", "taxi", "camion", "metro", "pasaje", "auto",
+            "vehiculo", "estacionamiento", "peaje", "transporte", "camioneta",
+            "bicicleta", "bus", "carro", "moto", "combustible"
         ],
         "Entretenimiento": [
-            "cine", "película", "concierto", "juego", "netflix", "spotify", "evento",
-            "teatro", "música", "fiesta", "parque", "discoteca", "diversión", "ocio"
+            "cine", "pelicula", "concierto", "juego", "netflix", "spotify",
+            "evento", "teatro", "musica", "fiesta", "parque", "discoteca",
+            "diversion", "ocio", "videojuego", "deporte", "show"
         ],
         "Salud": [
-            "medicina", "doctor", "farmacia", "dentista", "consulta", "terapia", "gimnasio",
-            "hospital", "análisis", "examen", "vacuna", "cirugía", "oftalmólogo"
+            "medicina", "doctor", "farmacia", "dentista", "consulta", "terapia",
+            "gimnasio", "hospital", "analisis", "examen", "vacuna", "cirugia",
+            "oftalmologo", "psicologo", "nutriologo", "optica"
         ],
         "Educacion": [
-            "libro", "colegiatura", "curso", "escuela", "educación", "universidad", "clase",
-            "seminario", "capacitacion", "maestría", "diplomado", "taller", "tutorial"
+            "libro", "colegiatura", "curso", "escuela", "educacion", "universidad",
+            "clase", "seminario", "capacitacion", "maestria", "diplomado",
+            "taller", "tutorial", "coaching"
         ],
         "Hogar": [
-            "renta", "luz", "agua", "internet", "super", "casa", "hogar", "gas", "muebles",
-            "electrodoméstico", "reparación", "plomería", "decoración", "limpieza", "electricidad"
+            "renta", "luz", "agua", "internet", "super", "casa", "hogar", "gas",
+            "muebles", "electrodomestico", "reparacion", "plomeria", "decoracion",
+            "limpieza", "electricidad", "servicio", "lavanderia"
         ],
         "Ropa": [
-            "ropa", "camisa", "pantalón", "zapato", "tenis", "vestido", "abrigo", "accesorio",
-            "sombrero", "reloj", "moda", "blusa", "jeans"
+            "ropa", "camisa", "pantalon", "zapato", "tenis", "vestido", "abrigo",
+            "accesorio", "sombrero", "reloj", "moda", "blusa", "jeans", "calcetin"
         ],
         "Mascotas": [
-            "perro", "gato", "veterinario", "alimento para perro", "croquetas", "mascota", "juguete para gato"
+            "perro", "gato", "veterinario", "alimento para perro", "croquetas",
+            "mascota", "juguete para gato", "adopcion"
         ],
         "Trabajo": [
-            "oficina", "computadora", "herramienta", "software", "suscripción", "material de trabajo",
-            "impresora", "papelería", "licencia", "servicio profesional"
+            "oficina", "computadora", "herramienta", "software", "suscripcion",
+            "material de trabajo", "impresora", "papeleria", "licencia", "servicio profesional",
+            "cliente", "proyecto", "nomina", "pago de salario"
         ],
         "Otros": [
-            "donación", "regalo", "impuesto", "banco", "seguro", "crédito", "deuda", "otro"
+            "donacion", "regalo", "impuesto", "banco", "seguro", "credito",
+            "deuda", "otro", "efectivo", "retiro", "transferencia", "ahorro"
         ]
     }
 
     categoria = "Otros"
     for cat, palabras in categorias.items():
-        if any(p in mensaje_lower for p in palabras):
+        if any(p in mensaje_sin_acentos for p in palabras):
             categoria = cat
             break
 
@@ -133,7 +158,7 @@ def clasificador_local(mensaje: str):
                 monto = 0.0
             break
 
-    descripcion = mensaje.capitalize()
+    descripcion = mensaje_original.capitalize()
     return tipo, categoria, monto, descripcion
 
 
@@ -143,7 +168,6 @@ def clasificador_local(mensaje: str):
 def clasificar_gasto(mensaje: str, token: str):
     ahora = datetime.now()
 
-    # --- Si hay OpenAI disponible, usarla ---
     if client:
         prompt = f"""
         Analiza este texto financiero: "{mensaje}".
@@ -171,10 +195,8 @@ def clasificar_gasto(mensaje: str, token: str):
         tipo, categoria, monto, descripcion = clasificador_local(mensaje)
         data = {"type": tipo, "category": categoria, "amount": monto, "descripcion": descripcion}
 
-    # --- Agregar fecha ---
     data["date"] = ahora.strftime("%Y-%m-%dT%H:%M:%S")
 
-    # --- Envío al backend ---
     headers = {
         "Authorization": token,
         "Content-Type": "application/json"
@@ -217,6 +239,6 @@ async def clasificar_endpoint(payload: MensajeUsuario, authorization: str = Head
 async def root():
     return {
         "status": "ok",
-        "message": "API de clasificación de gastos e ingresos funcionando",
+        "message": "API de clasificación de gastos e ingresos (soporta acentos y sin acentos)",
         "backend_url": BACKEND_URL
     }
