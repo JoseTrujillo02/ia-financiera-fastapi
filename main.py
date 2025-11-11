@@ -31,7 +31,7 @@ BACKEND_URL = os.getenv("BACKEND_URL")
 # ==============================
 # CONFIGURACIÓN DE FASTAPI
 # ==============================
-app = FastAPI(title="IA Financiera - Clasificador de Gastos e Ingresos (acentos tolerantes)")
+app = FastAPI(title="IA Financiera - Clasificador (con filtro avanzado)")
 
 # ==============================
 # MODELOS DE DATOS
@@ -49,7 +49,7 @@ class ClasificacionRespuesta(BaseModel):
 
 
 # ==============================
-# FUNCIONES AUXILIARES
+# UTILIDADES
 # ==============================
 def eliminar_acentos(texto: str) -> str:
     """Normaliza texto eliminando tildes y diacríticos."""
@@ -58,16 +58,82 @@ def eliminar_acentos(texto: str) -> str:
         if unicodedata.category(c) != "Mn"
     )
 
+# 🧩 Lista ampliada de palabras ofensivas
+PALABRAS_PROHIBIDAS = [
+    # Insultos generales
+    "pendejo", "pendeja", "idiota", "imbecil", "imbécil", "estupido", "estúpido", 
+    "tonto", "tonta", "tarado", "baboso", "babosa", "bruto", "bruta",
+    "payaso", "payasa", "ridiculo", "ridícula", "cretino", "menso", "mens@", "tard@",
+
+    # Vulgaridades / groserías
+    "puta", "puto", "put@", "chingar", "chingada", "chingado", "chingona", "chingon",
+    "verga", "vrga", "v3rga", "mamada", "mamado", "cabrón", "cabron", "cabrona", "chinga",
+    "chingate", "chingues", "chinguen", "chinguenasumadre", "chingatumadre", "ptm", "ptmr",
+    "p1nche", "pinche", "pinches", "culero", "culera", "culer@", "mierda", "mrd", "mierd@",
+
+    # Términos sexuales o explícitos
+    "sexo", "sexual", "porn", "porno", "pornografia", "pornografía", "pornografico", 
+    "pornográfico", "cojer", "coger", "cogio", "cogió", "follar", "follando", "masturbar",
+    "masturbacion", "masturbación", "orgasmo", "anal", "oral", "penetracion", "penetración",
+    "vagina", "pene", "vergon", "vergon@", "vergonaso", "chupar", "chupamela", "chupame",
+    "tragala", "trágala", "tragar", "culo", "trasero", "nalgas", "chichi", "chichis", "tetas",
+    "boobs", "teta", "semen", "corrida", "correrse", "eyacular", "pito", "falo", "verga", "vrg",
+
+    # Ofensas sociales o discriminatorias
+    "marica", "marico", "maricón", "marikon", "putazo", "gay", "lesbiana", "travesti",
+    "transexual", "negro", "negra", "negrata", "sidoso", "mongol", "retrasado", "down",
+    "naco", "indio", "zorra", "perra", "perro", "cerda", "cerdo", "prostituta", "prosti",
+    "golfa", "ramera", "puta barata", "joto", "loca", "loc@", "culiado", "culia@", "idiot@",
+
+    # Violencia o amenazas
+    "matar", "asesinar", "disparar", "violacion", "violación", "violar", "degollar",
+    "apuñalar", "golpear", "torturar", "suicidio", "suicidarme", "mátate", "matate", 
+    "muerte", "mátalo", "matalo", "desangrar", "ahorcar", "colgarme", "pegartiro", "tiro",
+
+    # Variantes disfrazadas
+    "hdp", "hijo de puta", "hija de puta", "perrazo", "p3ndejo", "m1erda", "ching4", "vrg4",
+    "chng", "pnch", "chngd", "hpt", "hpta", "qlo", "qlia", "p0rn", "put4", "put@", "put4s",
+    "idi0ta", "imb3cil", "imbesil", "cabro", "maldito", "maldita", "basura", "lacra", "escoria",
+    "enfermo", "asqueroso", "asquerosa", "repugnante", "mierdero", "inutil", "inútil"
+]
+
+
+def contiene_lenguaje_ofensivo(texto: str) -> bool:
+    """Detecta si el texto contiene lenguaje ofensivo."""
+    texto_normalizado = eliminar_acentos(texto.lower())
+    for palabra in PALABRAS_PROHIBIDAS:
+        if palabra in texto_normalizado:
+            print(f"🚫 [Filtro local] Mensaje bloqueado por contener: '{palabra}'")
+            return True
+    return False
+
+
+def validar_mensaje_con_openai(mensaje: str) -> bool:
+    """Usa la API de moderación de OpenAI para detectar lenguaje inapropiado."""
+    if not client:
+        return False
+    try:
+        result = client.moderations.create(
+            model="omni-moderation-latest",
+            input=mensaje
+        )
+        flagged = result.results[0].flagged
+        if flagged:
+            print("🚫 [OpenAI Moderation] Mensaje bloqueado por contenido inapropiado.")
+        return flagged
+    except Exception as e:
+        print("⚠️ Error al usar OpenAI Moderation:", e)
+        return False
+
 
 # ==============================
-# CLASIFICADOR LOCAL DE RESPALDO
+# CLASIFICADOR LOCAL
 # ==============================
 def clasificador_local(mensaje: str):
-    # Texto original y normalizado
     mensaje_original = mensaje.strip()
     mensaje_sin_acentos = eliminar_acentos(mensaje_original.lower())
 
-    # --- Detectar tipo (gasto o ingreso) ---
+    # --- Detectar tipo ---
     palabras_ingreso = [
         "recibi", "me pagaron", "me depositaron", "gane", "ingreso", "ingresaron",
         "entrada", "vendi", "obtuve", "cobre", "me transfirieron", "me enviaron", "deposito"
@@ -83,12 +149,12 @@ def clasificador_local(mensaje: str):
     elif any(p in mensaje_sin_acentos for p in palabras_gasto):
         tipo = "expense"
 
-    # --- Categorías ampliadas ---
+    # --- Categorías ---
     categorias = {
         "Comida": [
             "comida", "restaurante", "cafe", "taco", "hamburguesa", "almuerzo",
-            "cena", "desayuno", "pan", "super", "mercado", "bebida", "antojito",
-            "snack", "almuerzos", "lunch", "pizzas", "pollo", "carne", "postre"
+            "cena", "desayuno", "pan", "super", "mercado", "bebida",
+            "antojito", "snack", "pizzas", "pollo", "carne", "postre", "helado"
         ],
         "Transporte": [
             "gasolina", "uber", "taxi", "camion", "metro", "pasaje", "auto",
@@ -98,12 +164,12 @@ def clasificador_local(mensaje: str):
         "Entretenimiento": [
             "cine", "pelicula", "concierto", "juego", "netflix", "spotify",
             "evento", "teatro", "musica", "fiesta", "parque", "discoteca",
-            "diversion", "ocio", "videojuego", "deporte", "show"
+            "ocio", "videojuego", "deporte", "show"
         ],
         "Salud": [
             "medicina", "doctor", "farmacia", "dentista", "consulta", "terapia",
             "gimnasio", "hospital", "analisis", "examen", "vacuna", "cirugia",
-            "oftalmologo", "psicologo", "nutriologo", "optica"
+            "psicologo", "nutriologo", "optica"
         ],
         "Educacion": [
             "libro", "colegiatura", "curso", "escuela", "educacion", "universidad",
@@ -112,12 +178,12 @@ def clasificador_local(mensaje: str):
         ],
         "Hogar": [
             "renta", "luz", "agua", "internet", "super", "casa", "hogar", "gas",
-            "muebles", "electrodomestico", "reparacion", "plomeria", "decoracion",
-            "limpieza", "electricidad", "servicio", "lavanderia"
+            "muebles", "reparacion", "plomeria", "decoracion", "limpieza",
+            "electricidad", "servicio", "lavanderia"
         ],
         "Ropa": [
             "ropa", "camisa", "pantalon", "zapato", "tenis", "vestido", "abrigo",
-            "accesorio", "sombrero", "reloj", "moda", "blusa", "jeans", "calcetin"
+            "accesorio", "sombrero", "reloj", "moda", "blusa", "jeans"
         ],
         "Mascotas": [
             "perro", "gato", "veterinario", "alimento para perro", "croquetas",
@@ -125,12 +191,12 @@ def clasificador_local(mensaje: str):
         ],
         "Trabajo": [
             "oficina", "computadora", "herramienta", "software", "suscripcion",
-            "material de trabajo", "impresora", "papeleria", "licencia", "servicio profesional",
-            "cliente", "proyecto", "nomina", "pago de salario"
+            "material de trabajo", "impresora", "papeleria", "licencia",
+            "servicio profesional", "cliente", "proyecto", "nomina", "salario"
         ],
         "Otros": [
             "donacion", "regalo", "impuesto", "banco", "seguro", "credito",
-            "deuda", "otro", "efectivo", "retiro", "transferencia", "ahorro"
+            "deuda", "efectivo", "retiro", "transferencia", "ahorro"
         ]
     }
 
@@ -140,7 +206,7 @@ def clasificador_local(mensaje: str):
             categoria = cat
             break
 
-    # --- Extraer monto con regex mejorado ---
+    # --- Extraer monto ---
     patrones = [
         r'\$\s*(\d+(?:,\d{3})*(?:\.\d{1,2})?)',
         r'(\d+(?:,\d{3})*(?:\.\d{1,2})?)\s*pesos?',
@@ -151,15 +217,14 @@ def clasificador_local(mensaje: str):
     for patron in patrones:
         match = re.search(patron, mensaje)
         if match:
-            monto_str = match.group(1).replace(',', '')
             try:
+                monto_str = match.group(1).replace(',', '')
                 monto = float(monto_str)
             except:
                 monto = 0.0
             break
 
-    descripcion = mensaje_original.capitalize()
-    return tipo, categoria, monto, descripcion
+    return tipo, categoria, monto, mensaje_original.capitalize()
 
 
 # ==============================
@@ -167,53 +232,14 @@ def clasificador_local(mensaje: str):
 # ==============================
 def clasificar_gasto(mensaje: str, token: str):
     ahora = datetime.now()
+    tipo, categoria, monto, descripcion = clasificador_local(mensaje)
+    data = {"type": tipo, "category": categoria, "amount": monto, "descripcion": descripcion, "date": ahora.strftime("%Y-%m-%dT%H:%M:%S")}
 
-    if client:
-        prompt = f"""
-        Analiza este texto financiero: "{mensaje}".
-        Devuelve un JSON con los campos:
-        "type" (expense o income), "category", "amount" y "descripcion".
-        Categorías posibles: Comida, Transporte, Entretenimiento, Salud, Educación, Hogar, Ropa, Mascotas, Trabajo, Otros.
-        """
-        try:
-            respuesta = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}]
-            )
-            texto = respuesta.choices[0].message.content.strip()
-            if "{" in texto:
-                inicio = texto.find("{")
-                fin = texto.rfind("}") + 1
-                texto = texto[inicio:fin]
-            data = json.loads(texto)
-        except Exception as e:
-            print(f"⚠ Error con OpenAI ({e}). Usando clasificador local.")
-            tipo, categoria, monto, descripcion = clasificador_local(mensaje)
-            data = {"type": tipo, "category": categoria, "amount": monto, "descripcion": descripcion}
-    else:
-        print("⚠ OpenAI no disponible. Usando clasificador local.")
-        tipo, categoria, monto, descripcion = clasificador_local(mensaje)
-        data = {"type": tipo, "category": categoria, "amount": monto, "descripcion": descripcion}
-
-    data["date"] = ahora.strftime("%Y-%m-%dT%H:%M:%S")
-
-    headers = {
-        "Authorization": token,
-        "Content-Type": "application/json"
-    }
-
-    print("="*60)
-    print(f"📱 Mensaje recibido: {mensaje}")
-    print(f"🔑 Token recibido: {token[:50]}...")
-    print(f"📤 JSON a enviar al backend:")
-    print(json.dumps(data, indent=2, ensure_ascii=False))
-    print(f"🌐 URL del backend: {BACKEND_URL}")
-    print("="*60)
+    headers = {"Authorization": token, "Content-Type": "application/json"}
 
     try:
         response = requests.post(BACKEND_URL, json=data, headers=headers, timeout=10)
-        print(f"📥 Status Code: {response.status_code}")
-        print(f"📝 Body: {response.text}")
+        print(f"📥 Status: {response.status_code} | 📝 Body: {response.text}")
     except Exception as ex:
         print(f"❌ Error enviando al backend: {ex}")
 
@@ -221,24 +247,20 @@ def clasificar_gasto(mensaje: str, token: str):
 
 
 # ==============================
-# ENDPOINT
+# ENDPOINT PRINCIPAL
 # ==============================
 @app.post("/clasificar_gasto", response_model=ClasificacionRespuesta)
 async def clasificar_endpoint(payload: MensajeUsuario, authorization: str = Header(...)):
     if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Token inválido o ausente en Authorization header")
+        raise HTTPException(status_code=401, detail="Token inválido o ausente")
 
-    resultado = clasificar_gasto(payload.mensaje, authorization)
-    return resultado
+    if contiene_lenguaje_ofensivo(payload.mensaje) or validar_mensaje_con_openai(payload.mensaje):
+        print(f"🚨 Intento bloqueado ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})")
+        raise HTTPException(status_code=400, detail="El mensaje contiene lenguaje inapropiado o no permitido.")
+
+    return clasificar_gasto(payload.mensaje, authorization)
 
 
-# ==============================
-# ENDPOINT DE PRUEBA
-# ==============================
 @app.get("/")
 async def root():
-    return {
-        "status": "ok",
-        "message": "API de clasificación de gastos e ingresos (soporta acentos y sin acentos)",
-        "backend_url": BACKEND_URL
-    }
+    return {"status": "ok", "message": "IA Financiera con filtro avanzado de lenguaje ofensivo"}
