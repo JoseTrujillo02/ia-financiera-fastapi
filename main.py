@@ -175,16 +175,38 @@ def clasificador_local(mensaje: str):
         ]
     }
 
-    categoria = "Otros"
-    for cat, palabras in categorias.items():
-        if any(p in msg for p in palabras):
-            categoria = cat
-            break
+        # ==========================
+    # DETECCIÓN DE CATEGORÍA
+    # ==========================
+    coincidencias = {}
 
-    match = re.search(r'\$?(\d+(?:\.\d{1,2})?)', mensaje)
-    monto = float(match.group(1)) if match else 0.0
+    # Contar coincidencias por categoría
+    for cat, palabras in categorias.items():
+        coincidencias[cat] = sum(1 for p in palabras if p in msg)
+
+    # Obtener la categoría con más coincidencias reales
+    categoria = max(coincidencias, key=coincidencias.get)
+    if coincidencias[categoria] == 0:
+        # Si no hubo coincidencias, intenta inferir por tiendas o palabras clave
+        if any(tienda in msg for tienda in ["oxxo", "seven", "7eleven", "gasolinera"]):
+            categoria = "Transporte"
+        elif any(tienda in msg for tienda in ["walmart", "soriana", "chedraui", "bodega", "super"]):
+            categoria = "Hogar"
+        elif any(tienda in msg for tienda in ["netflix", "spotify", "disney", "hbo", "youtube"]):
+            categoria = "Entretenimiento"
+        elif any(tienda in msg for tienda in ["warson", "warsom", "warzon", "warzone"]):
+            categoria = "Otros"  # tiendas desconocidas o genéricas
+        else:
+            categoria = "Otros"
+
+    # ==========================
+    # DETECCIÓN DE MONTO
+    # ==========================
+    match = re.search(r'\$?\s*(\d+(?:[.,]\d{1,2})?)', mensaje)
+    monto = float(match.group(1).replace(',', '.')) if match else 0.0
 
     return tipo, categoria, monto, msg_original.capitalize()
+
 
 # ==============================
 # FUNCIÓN PRINCIPAL
