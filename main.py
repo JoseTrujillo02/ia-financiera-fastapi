@@ -31,14 +31,13 @@ BACKEND_URL = os.getenv("BACKEND_URL")
 # ==============================
 # CONFIGURACIÓN DE FASTAPI
 # ==============================
-app = FastAPI(title="IA Financiera - Clasificador (con filtro avanzado)")
+app = FastAPI(title="IA Financiera - Filtro Extendido Antilenguaje Ofensivo")
 
 # ==============================
 # MODELOS DE DATOS
 # ==============================
 class MensajeUsuario(BaseModel):
     mensaje: str
-
 
 class ClasificacionRespuesta(BaseModel):
     type: str
@@ -49,109 +48,84 @@ class ClasificacionRespuesta(BaseModel):
 
 
 # ==============================
-# UTILIDADES
+# NORMALIZACIÓN DE TEXTO
 # ==============================
 def eliminar_acentos(texto: str) -> str:
-    """Normaliza texto eliminando tildes y diacríticos."""
+    """Elimina acentos y diacríticos."""
     return "".join(
         c for c in unicodedata.normalize("NFD", texto)
         if unicodedata.category(c) != "Mn"
     )
 
-def normalizar_texto_para_filtro(texto: str) -> str:
-    """
-    Normaliza el texto para detectar variaciones ofensivas:
-    - Elimina asteriscos, guiones, espacios entre letras
-    - Reemplaza números por letras (l33t speak)
-    - Elimina acentos
-    """
-    texto = texto.lower()
-    texto = eliminar_acentos(texto)
-    
-    # Eliminar caracteres especiales comunes en censura
-    texto = texto.replace('*', '').replace('-', '').replace('_', '')
-    texto = texto.replace('@', 'a').replace('4', 'a').replace('3', 'e')
-    texto = texto.replace('1', 'i').replace('0', 'o').replace('5', 's')
-    
-    # Eliminar espacios entre letras (ej: "p u t a" -> "puta")
-    texto_sin_espacios = ''.join(texto.split())
-    
-    return texto_sin_espacios
+def normalizar_texto(texto: str) -> str:
+    """Elimina símbolos, acentos y reemplaza caracteres similares."""
+    texto = eliminar_acentos(texto.lower())
+    reemplazos = {
+        "@": "a", "$": "s", "1": "i", "!": "i", "3": "e", "0": "o",
+        "4": "a", "7": "t", "5": "s", "8": "b", "*": "", "-": "", ".": ""
+    }
+    for simb, letra in reemplazos.items():
+        texto = texto.replace(simb, letra)
+    texto = re.sub(r'[\W_]+', '', texto)
+    return texto
 
-# 🧩 Lista ampliada de palabras ofensivas (base)
-PALABRAS_PROHIBIDAS_BASE = [
-    # Insultos generales
-    "pendejo", "pendeja", "idiota", "imbecil", "estupido", 
-    "tonto", "tonta", "tarado", "baboso", "babosa", "bruto", "bruta",
-    "payaso", "payasa", "ridiculo", "cretino", "menso",
 
-    # Vulgaridades / groserías
-    "puta", "puto", "chingar", "chingada", "chingado", "chingona", "chingon",
-    "verga", "vrga", "mamada", "mamado", "cabron", "cabrona", "chinga",
-    "chingate", "chingues", "chinguen", "chinguenasumadre", "chingatumadre",
-    "pinche", "pinches", "culero", "culera", "mierda",
+# ==============================
+# FILTRO DE PALABRAS OFENSIVAS
+# ==============================
 
-    # Términos sexuales o explícitos
-    "sexo", "sexual", "porn", "porno", "pornografia", "pornografico", 
-    "cojer", "coger", "cogio", "follar", "follando", "masturbar",
-    "masturbacion", "orgasmo", "anal", "oral", "penetracion",
-    "vagina", "pene", "vergon", "vergonaso", "chupar", "chupamela", "chupame",
-    "tragala", "tragar", "culo", "trasero", "nalgas", "chichi", "chichis", "tetas",
-    "boobs", "teta", "semen", "corrida", "correrse", "eyacular", "pito", "falo",
+# 🔥 Súper lista de groserías, insultos, sexuales, discriminatorios, disfrazados
+PATRONES_OFENSIVOS = [
+    # Vulgaridades comunes
+    r"p+u+t+[ao@]+", r"p+u+t+a+s+", r"p+u+t+@", r"p+1nch+e+", r"pinch[e3]+",
+    r"ch+i+n+g+[ao]+", r"ch+1ng+[ao]+", r"v+e+r+g+[a4]+", r"vrg[a4]+", r"m+e+r+d+a+",
+    r"m+i+e+r+d+[ao]+", r"p+e+n+d+e+j+[ao]+", r"p3nd[e3]j[oa]", r"p+e+n+d+[io]jo+s*",
+    r"c+u+l+[ao]+", r"c+u+1+[ao]+", r"k+u+l+[ao]+", r"m+a+m+a+d+[ao]+", r"m+a+m+[ao]+n+",
+    r"c+a+b+r+o+n+", r"h+d+p", r"h+ijo+d+[ep]+u+t+[ao]+", r"h+dp", r"hdp+", r"hijoputa",
+    r"m+a+r+i+c+[ao]+", r"i+d+i+o+t+[ao]+", r"i+m+b+e+c+i+l+", r"t+o+n+t+[ao]+",
+    r"t+ar+a+d+[ao]+", r"r+e+t+r+a+s+[ao]+", r"b+a+b+[ao]+s+[ao]+", r"m+e+n+s+[ao]+",
+    r"g+u+e+y+", r"wey", r"pinshi+", r"pnch[e3]+", r"p1nchi+", r"put[oi]n+",
+    r"p+t+m+", r"ptmr", r"chngd", r"chng4", r"chingatumadre", r"chinguesumadre",
 
-    # Ofensas sociales o discriminatorias
-    "marica", "marico", "maricon", "marikon", "putazo", "travesti",
-    "transexual", "negrata", "sidoso", "mongol", "retrasado",
-    "naco", "zorra", "perra", "perro", "cerda", "cerdo", "prostituta", "prosti",
-    "golfa", "ramera", "joto", "loca", "culiado",
+    # Sexuales explícitas o sugerentes
+    r"c+o+j+[ei]+r+", r"f+o+l+l+a+r+", r"m+a+s+t+u+r+b+[ao]+", r"p+o+r+n+", r"s+e+x+[ao]+",
+    r"s+e+g+s+", r"v+a+g+[i1]+n+[ao]+", r"p+i+t+[ao]+", r"v+e+r+g+o+n+", r"v+e+r+g+u+d+o+",
+    r"n+a+l+g+[ao]+", r"t+e+t+[ao]+", r"ch+i+c+h+i+", r"b+o+o+b+s+", r"p+e+c+h+[oa]+",
+    r"o+r+a+l+", r"a+n+a+l+", r"t+r+a+g+a+", r"c+u+l+[oa]+", r"p+e+r+r+[ao]+", r"z+o+r+r+[ao]+",
+    r"m+a+m+[ao]+n+", r"ch+u+p+a+[rm]+", r"c+h+i+c+h+[ao]+", r"f+a+l+[oa]+", r"e+y+a+c+u+l+a+",
+    r"corrida", r"f+u+c+k+", r"s+u+c+k+", r"69", r"p+o+l+l+[ao]+",
 
-    # Violencia o amenazas
-    "matar", "asesinar", "disparar", "violacion", "violar", "degollar",
-    "apunalar", "golpear", "torturar", "suicidio", "suicidarme", "matate", 
-    "muerte", "matalo", "desangrar", "ahorcar", "colgarme",
+    # Discriminación / odio
+    r"n+e+g+r+[ao]+", r"p+u+t+[o@]+", r"m+a+r+i+k+[ao]+", r"m+a+r+i+c+[ao]+", r"l+e+s+b+i+a+n+",
+    r"t+r+a+v+[ei]+s+[ti]+", r"t+r+a+n+s+", r"s+i+d+o+s+[ao]+", r"m+o+n+g+o+l+", r"d+o+w+n+",
+    r"n+a+c+[ao]+", r"i+n+d+i+[ao]+", r"z+o+r+r+[ao]+", r"p+r+o+s+t+i+t+[uo]+", r"p+u+t+[ao]+",
+    r"p+e+r+r+[ao]+", r"m+o+r+e+n+[ao]+", r"g+o+r+d+[ao]+", r"f+e+[oa]+", r"h+o+m+o+f+o+b+[oa]+",
+    r"r+a+c+i+s+t+[ao]+",
 
-    # Variantes comunes
-    "hdp", "hijo de puta", "hija de puta", "perrazo",
-    "hpt", "hpta", "qlo", "qlia",
-    "maldito", "maldita", "basura", "lacra", "escoria",
-    "enfermo", "asqueroso", "asquerosa", "repugnante", "inutil"
+    # Violencia / amenazas
+    r"m+a+t+[ao]+", r"a+s+e+s+i+n+[ao]+", r"v+i+o+l+a+[ao]+", r"d+e+g+o+l+[ao]+", r"a+h+o+r+c+[ao]+",
+    r"m+u+e+r+[te]+", r"s+u+i+c+i+d+[ao]+", r"s+u+i+c+i+d+a+r+", r"a+t+a+c+a+r+", r"t+i+r+[oa]+",
+    r"d+i+s+p+a+r+[oa]+", r"b+a+l+[ao]+", r"p+e+g+a+r+", r"g+o+l+p+[ea]+r+", r"t+o+r+t+u+r+[ao]+",
+
+    # Variantes disfrazadas
+    r"p3nd3j[o0]+", r"m13rd[a4]+", r"vrg[a4]+", r"ch1ng[ao]+", r"p1nch[e3]+", r"put[a@]+",
+    r"f0llar", r"s3x0", r"s3xo", r"p0rn", r"hpt+", r"qlo", r"qlia", r"vrg4", r"vrgon",
+    r"ptm+", r"hpta", r"marik", r"imb3cil", r"idi0ta", r"malparid", r"mierd@", r"loc@", r"mar1ca",
+    r"vergon", r"c4bron", r"put@", r"pendej@", r"culer@", r"pndj", r"pr0st", r"suicid@", r"violaci[ao]+n"
 ]
 
-
-def contiene_lenguaje_ofensivo(texto: str) -> tuple[bool, str]:
-    """
-    Detecta si el texto contiene lenguaje ofensivo, incluso con censura.
-    Retorna (es_ofensivo, palabra_detectada)
-    """
-    texto_normalizado = normalizar_texto_para_filtro(texto)
-    
-    # También normalizamos el texto original sin quitar espacios para detectar palabras completas
-    texto_original_normalizado = eliminar_acentos(texto.lower())
-    
-    for palabra in PALABRAS_PROHIBIDAS_BASE:
-        palabra_normalizada = normalizar_texto_para_filtro(palabra)
-        
-        # Detectar en texto sin espacios (para casos como "p*")
-        if palabra_normalizada in texto_normalizado:
-            print(f"🚫 [Filtro local] Mensaje bloqueado por contener: '{palabra}' (detectado como: '{palabra_normalizada}')")
-            return True, palabra
-        
-        # Detectar en texto original (palabras completas)
-        if palabra in texto_original_normalizado:
-            print(f"🚫 [Filtro local] Mensaje bloqueado por contener: '{palabra}'")
-            return True, palabra
-        
-        # Detectar variaciones con asteriscos entre letras
-        patron_asterisco = ''.join([f"{letra}[_\\-\\s]" for letra in palabra])
-        if re.search(patron_asterisco, texto_original_normalizado):
-            print(f"🚫 [Filtro local] Mensaje bloqueado por variación censurada de: '{palabra}'")
-            return True, palabra
-    
-    return False, ""
+def contiene_lenguaje_ofensivo(texto: str) -> bool:
+    """Detecta lenguaje ofensivo aunque esté disfrazado con símbolos."""
+    texto_normalizado = normalizar_texto(texto)
+    for patron in PATRONES_OFENSIVOS:
+        if re.search(patron, texto_normalizado):
+            print(f"🚫 [Filtro] Bloqueado por patrón: {patron}")
+            return True
+    return False
 
 
 def validar_mensaje_con_openai(mensaje: str) -> bool:
-    """Usa la API de moderación de OpenAI para detectar lenguaje inapropiado."""
+    """Valida con IA de OpenAI si hay lenguaje inapropiado."""
     if not client:
         return False
     try:
@@ -161,7 +135,7 @@ def validar_mensaje_con_openai(mensaje: str) -> bool:
         )
         flagged = result.results[0].flagged
         if flagged:
-            print("🚫 [OpenAI Moderation] Mensaje bloqueado por contenido inapropiado.")
+            print("🚫 [OpenAI Moderation] Contenido inapropiado detectado.")
         return flagged
     except Exception as e:
         print("⚠ Error al usar OpenAI Moderation:", e)
@@ -175,14 +149,14 @@ def clasificador_local(mensaje: str):
     mensaje_original = mensaje.strip()
     mensaje_sin_acentos = eliminar_acentos(mensaje_original.lower())
 
-    # --- Detectar tipo ---
+    # Detectar tipo (ingreso o gasto)
     palabras_ingreso = [
-        "recibi", "me pagaron", "me depositaron", "gane", "ingreso", "ingresaron",
-        "entrada", "vendi", "obtuve", "cobre", "me transfirieron", "me enviaron", "deposito"
+        "recibi", "me pagaron", "depositaron", "gane", "ingreso", "entrada",
+        "vendi", "obtuve", "cobre", "me transfirieron", "me enviaron", "deposito", "venta", "salario"
     ]
     palabras_gasto = [
-        "gaste", "pague", "compre", "inverti", "deposite", "saque", "transfiri",
-        "done", "consumi", "pagado", "adquiri", "use", "realice un pago"
+        "gaste", "pague", "compre", "inverti", "saque", "transfiri", "done", "consumi",
+        "adquiri", "pago", "gastado", "comprado", "realice un pago", "use"
     ]
 
     tipo = "expense"
@@ -191,55 +165,18 @@ def clasificador_local(mensaje: str):
     elif any(p in mensaje_sin_acentos for p in palabras_gasto):
         tipo = "expense"
 
-    # --- Categorías ---
+    # Categorías
     categorias = {
-        "Comida": [
-            "comida", "restaurante", "cafe", "taco", "hamburguesa", "almuerzo",
-            "cena", "desayuno", "pan", "super", "mercado", "bebida",
-            "antojito", "snack", "pizzas", "pollo", "carne", "postre", "helado"
-        ],
-        "Transporte": [
-            "gasolina", "uber", "taxi", "camion", "metro", "pasaje", "auto",
-            "vehiculo", "estacionamiento", "peaje", "transporte", "camioneta",
-            "bicicleta", "bus", "carro", "moto", "combustible"
-        ],
-        "Entretenimiento": [
-            "cine", "pelicula", "concierto", "juego", "netflix", "spotify",
-            "evento", "teatro", "musica", "fiesta", "parque", "discoteca",
-            "ocio", "videojuego", "deporte", "show"
-        ],
-        "Salud": [
-            "medicina", "doctor", "farmacia", "dentista", "consulta", "terapia",
-            "gimnasio", "hospital", "analisis", "examen", "vacuna", "cirugia",
-            "psicologo", "nutriologo", "optica"
-        ],
-        "Educacion": [
-            "libro", "colegiatura", "curso", "escuela", "educacion", "universidad",
-            "clase", "seminario", "capacitacion", "maestria", "diplomado",
-            "taller", "tutorial", "coaching"
-        ],
-        "Hogar": [
-            "renta", "luz", "agua", "internet", "super", "casa", "hogar", "gas",
-            "muebles", "reparacion", "plomeria", "decoracion", "limpieza",
-            "electricidad", "servicio", "lavanderia"
-        ],
-        "Ropa": [
-            "ropa", "camisa", "pantalon", "zapato", "tenis", "vestido", "abrigo",
-            "accesorio", "sombrero", "reloj", "moda", "blusa", "jeans"
-        ],
-        "Mascotas": [
-            "perro", "gato", "veterinario", "alimento para perro", "croquetas",
-            "mascota", "juguete para gato", "adopcion"
-        ],
-        "Trabajo": [
-            "oficina", "computadora", "herramienta", "software", "suscripcion",
-            "material de trabajo", "impresora", "papeleria", "licencia",
-            "servicio profesional", "cliente", "proyecto", "nomina", "salario"
-        ],
-        "Otros": [
-            "donacion", "regalo", "impuesto", "banco", "seguro", "credito",
-            "deuda", "efectivo", "retiro", "transferencia", "ahorro"
-        ]
+        "Comida": ["comida", "restaurante", "cafe", "hamburguesa", "super", "snack", "cena", "almuerzo"],
+        "Transporte": ["gasolina", "uber", "taxi", "camion", "metro", "auto", "vehiculo", "moto", "transporte"],
+        "Entretenimiento": ["cine", "pelicula", "netflix", "concierto", "fiesta", "juego", "evento"],
+        "Salud": ["medicina", "doctor", "farmacia", "dentista", "terapia", "hospital", "gimnasio"],
+        "Educacion": ["libro", "curso", "escuela", "colegiatura", "universidad", "taller", "clase"],
+        "Hogar": ["renta", "luz", "agua", "internet", "gas", "electricidad", "limpieza", "hogar"],
+        "Ropa": ["ropa", "zapato", "camisa", "pantalon", "blusa", "vestido"],
+        "Trabajo": ["oficina", "computadora", "papeleria", "herramienta", "proyecto", "nomina"],
+        "Mascotas": ["perro", "gato", "veterinario", "croquetas", "mascota"],
+        "Otros": ["banco", "impuesto", "seguro", "credito", "donacion", "regalo", "ahorro"]
     }
 
     categoria = "Otros"
@@ -248,13 +185,12 @@ def clasificador_local(mensaje: str):
             categoria = cat
             break
 
-    # --- Extraer monto ---
+    # Extraer monto
     patrones = [
         r'\$\s*(\d+(?:,\d{3})*(?:\.\d{1,2})?)',
         r'(\d+(?:,\d{3})*(?:\.\d{1,2})?)\s*pesos?',
         r'(\d+(?:,\d{3})*(?:\.\d{1,2})?)'
     ]
-
     monto = 0.0
     for patron in patrones:
         match = re.search(patron, mensaje)
@@ -266,7 +202,8 @@ def clasificador_local(mensaje: str):
                 monto = 0.0
             break
 
-    return tipo, categoria, monto, mensaje_original.capitalize()
+    descripcion = mensaje_original.capitalize()
+    return tipo, categoria, monto, descripcion
 
 
 # ==============================
@@ -275,13 +212,23 @@ def clasificador_local(mensaje: str):
 def clasificar_gasto(mensaje: str, token: str):
     ahora = datetime.now()
     tipo, categoria, monto, descripcion = clasificador_local(mensaje)
-    data = {"type": tipo, "category": categoria, "amount": monto, "descripcion": descripcion, "date": ahora.strftime("%Y-%m-%dT%H:%M:%S")}
+
+    data = {
+        "type": tipo,
+        "amount": monto,
+        "category": categoria,
+        "descripcion": descripcion,
+        "date": ahora.strftime("%Y-%m-%dT%H:%M:%S")
+    }
 
     headers = {"Authorization": token, "Content-Type": "application/json"}
 
+    print(f"📤 Enviando al backend:\n{json.dumps(data, indent=2, ensure_ascii=False)}")
+
     try:
         response = requests.post(BACKEND_URL, json=data, headers=headers, timeout=10)
-        print(f"📥 Status: {response.status_code} | 📝 Body: {response.text}")
+        print(f"📥 Backend status: {response.status_code}")
+        print(f"📄 Respuesta: {response.text}")
     except Exception as ex:
         print(f"❌ Error enviando al backend: {ex}")
 
@@ -296,19 +243,23 @@ async def clasificar_endpoint(payload: MensajeUsuario, authorization: str = Head
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Token inválido o ausente")
 
-    # Validar con filtro mejorado
-    es_ofensivo, palabra_detectada = contiene_lenguaje_ofensivo(payload.mensaje)
-    
-    if es_ofensivo or validar_mensaje_con_openai(payload.mensaje):
-        print(f"🚨 Intento bloqueado ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')}): {payload.mensaje}")
-        raise HTTPException(
-            status_code=400, 
-            detail="El mensaje contiene lenguaje inapropiado. Por favor, usa un lenguaje respetuoso para registrar tus transacciones."
-        )
+    # 🧠 Filtro avanzado
+    if contiene_lenguaje_ofensivo(payload.mensaje):
+        raise HTTPException(status_code=400, detail="El mensaje contiene lenguaje ofensivo o disfrazado con símbolos.")
+    if validar_mensaje_con_openai(payload.mensaje):
+        raise HTTPException(status_code=400, detail="El mensaje contiene lenguaje inapropiado según moderación IA.")
 
-    return clasificar_gasto(payload.mensaje, authorization)
+    resultado = clasificar_gasto(payload.mensaje, authorization)
+    return resultado
 
 
+# ==============================
+# ENDPOINT DE PRUEBA
+# ==============================
 @app.get("/")
 async def root():
-    return {"status": "ok", "message": "IA Financiera con filtro avanzado de lenguaje ofensivo"}
+    return {
+        "status": "ok",
+        "message": "IA Financiera con filtro extremo de lenguaje ofensivo lista 🚫",
+        "backend_url": BACKEND_URL
+    }
