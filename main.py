@@ -58,54 +58,96 @@ def eliminar_acentos(texto: str) -> str:
         if unicodedata.category(c) != "Mn"
     )
 
-# 🧩 Lista ampliada de palabras ofensivas
-PALABRAS_PROHIBIDAS = [
+def normalizar_texto_para_filtro(texto: str) -> str:
+    """
+    Normaliza el texto para detectar variaciones ofensivas:
+    - Elimina asteriscos, guiones, espacios entre letras
+    - Reemplaza números por letras (l33t speak)
+    - Elimina acentos
+    """
+    texto = texto.lower()
+    texto = eliminar_acentos(texto)
+    
+    # Eliminar caracteres especiales comunes en censura
+    texto = texto.replace('*', '').replace('-', '').replace('_', '')
+    texto = texto.replace('@', 'a').replace('4', 'a').replace('3', 'e')
+    texto = texto.replace('1', 'i').replace('0', 'o').replace('5', 's')
+    
+    # Eliminar espacios entre letras (ej: "p u t a" -> "puta")
+    texto_sin_espacios = ''.join(texto.split())
+    
+    return texto_sin_espacios
+
+# 🧩 Lista ampliada de palabras ofensivas (base)
+PALABRAS_PROHIBIDAS_BASE = [
     # Insultos generales
-    "pendejo", "pendeja", "idiota", "imbecil", "imbécil", "estupido", "estúpido", 
+    "pendejo", "pendeja", "idiota", "imbecil", "estupido", 
     "tonto", "tonta", "tarado", "baboso", "babosa", "bruto", "bruta",
-    "payaso", "payasa", "ridiculo", "ridícula", "cretino", "menso", "mens@", "tard@",
+    "payaso", "payasa", "ridiculo", "cretino", "menso",
 
     # Vulgaridades / groserías
-    "puta", "puto", "put@", "chingar", "chingada", "chingado", "chingona", "chingon",
-    "verga", "vrga", "v3rga", "mamada", "mamado", "cabrón", "cabron", "cabrona", "chinga",
-    "chingate", "chingues", "chinguen", "chinguenasumadre", "chingatumadre", "ptm", "ptmr",
-    "p1nche", "pinche", "pinches", "culero", "culera", "culer@", "mierda", "mrd", "mierd@",
+    "puta", "puto", "chingar", "chingada", "chingado", "chingona", "chingon",
+    "verga", "vrga", "mamada", "mamado", "cabron", "cabrona", "chinga",
+    "chingate", "chingues", "chinguen", "chinguenasumadre", "chingatumadre",
+    "pinche", "pinches", "culero", "culera", "mierda",
 
     # Términos sexuales o explícitos
-    "sexo", "sexual", "porn", "porno", "pornografia", "pornografía", "pornografico", 
-    "pornográfico", "cojer", "coger", "cogio", "cogió", "follar", "follando", "masturbar",
-    "masturbacion", "masturbación", "orgasmo", "anal", "oral", "penetracion", "penetración",
-    "vagina", "pene", "vergon", "vergon@", "vergonaso", "chupar", "chupamela", "chupame",
-    "tragala", "trágala", "tragar", "culo", "trasero", "nalgas", "chichi", "chichis", "tetas",
-    "boobs", "teta", "semen", "corrida", "correrse", "eyacular", "pito", "falo", "verga", "vrg",
+    "sexo", "sexual", "porn", "porno", "pornografia", "pornografico", 
+    "cojer", "coger", "cogio", "follar", "follando", "masturbar",
+    "masturbacion", "orgasmo", "anal", "oral", "penetracion",
+    "vagina", "pene", "vergon", "vergonaso", "chupar", "chupamela", "chupame",
+    "tragala", "tragar", "culo", "trasero", "nalgas", "chichi", "chichis", "tetas",
+    "boobs", "teta", "semen", "corrida", "correrse", "eyacular", "pito", "falo",
 
     # Ofensas sociales o discriminatorias
-    "marica", "marico", "maricón", "marikon", "putazo", "gay", "lesbiana", "travesti",
-    "transexual", "negro", "negra", "negrata", "sidoso", "mongol", "retrasado", "down",
-    "naco", "indio", "zorra", "perra", "perro", "cerda", "cerdo", "prostituta", "prosti",
-    "golfa", "ramera", "puta barata", "joto", "loca", "loc@", "culiado", "culia@", "idiot@",
+    "marica", "marico", "maricon", "marikon", "putazo", "travesti",
+    "transexual", "negrata", "sidoso", "mongol", "retrasado",
+    "naco", "zorra", "perra", "perro", "cerda", "cerdo", "prostituta", "prosti",
+    "golfa", "ramera", "joto", "loca", "culiado",
 
     # Violencia o amenazas
-    "matar", "asesinar", "disparar", "violacion", "violación", "violar", "degollar",
-    "apuñalar", "golpear", "torturar", "suicidio", "suicidarme", "mátate", "matate", 
-    "muerte", "mátalo", "matalo", "desangrar", "ahorcar", "colgarme", "pegartiro", "tiro",
+    "matar", "asesinar", "disparar", "violacion", "violar", "degollar",
+    "apunalar", "golpear", "torturar", "suicidio", "suicidarme", "matate", 
+    "muerte", "matalo", "desangrar", "ahorcar", "colgarme",
 
-    # Variantes disfrazadas
-    "hdp", "hijo de puta", "hija de puta", "perrazo", "p3ndejo", "m1erda", "ching4", "vrg4",
-    "chng", "pnch", "chngd", "hpt", "hpta", "qlo", "qlia", "p0rn", "put4", "put@", "put4s",
-    "idi0ta", "imb3cil", "imbesil", "cabro", "maldito", "maldita", "basura", "lacra", "escoria",
-    "enfermo", "asqueroso", "asquerosa", "repugnante", "mierdero", "inutil", "inútil"
+    # Variantes comunes
+    "hdp", "hijo de puta", "hija de puta", "perrazo",
+    "hpt", "hpta", "qlo", "qlia",
+    "maldito", "maldita", "basura", "lacra", "escoria",
+    "enfermo", "asqueroso", "asquerosa", "repugnante", "inutil"
 ]
 
 
-def contiene_lenguaje_ofensivo(texto: str) -> bool:
-    """Detecta si el texto contiene lenguaje ofensivo."""
-    texto_normalizado = eliminar_acentos(texto.lower())
-    for palabra in PALABRAS_PROHIBIDAS:
-        if palabra in texto_normalizado:
+def contiene_lenguaje_ofensivo(texto: str) -> tuple[bool, str]:
+    """
+    Detecta si el texto contiene lenguaje ofensivo, incluso con censura.
+    Retorna (es_ofensivo, palabra_detectada)
+    """
+    texto_normalizado = normalizar_texto_para_filtro(texto)
+    
+    # También normalizamos el texto original sin quitar espacios para detectar palabras completas
+    texto_original_normalizado = eliminar_acentos(texto.lower())
+    
+    for palabra in PALABRAS_PROHIBIDAS_BASE:
+        palabra_normalizada = normalizar_texto_para_filtro(palabra)
+        
+        # Detectar en texto sin espacios (para casos como "p*")
+        if palabra_normalizada in texto_normalizado:
+            print(f"🚫 [Filtro local] Mensaje bloqueado por contener: '{palabra}' (detectado como: '{palabra_normalizada}')")
+            return True, palabra
+        
+        # Detectar en texto original (palabras completas)
+        if palabra in texto_original_normalizado:
             print(f"🚫 [Filtro local] Mensaje bloqueado por contener: '{palabra}'")
-            return True
-    return False
+            return True, palabra
+        
+        # Detectar variaciones con asteriscos entre letras
+        patron_asterisco = ''.join([f"{letra}[_\\-\\s]" for letra in palabra])
+        if re.search(patron_asterisco, texto_original_normalizado):
+            print(f"🚫 [Filtro local] Mensaje bloqueado por variación censurada de: '{palabra}'")
+            return True, palabra
+    
+    return False, ""
 
 
 def validar_mensaje_con_openai(mensaje: str) -> bool:
@@ -122,7 +164,7 @@ def validar_mensaje_con_openai(mensaje: str) -> bool:
             print("🚫 [OpenAI Moderation] Mensaje bloqueado por contenido inapropiado.")
         return flagged
     except Exception as e:
-        print("⚠️ Error al usar OpenAI Moderation:", e)
+        print("⚠ Error al usar OpenAI Moderation:", e)
         return False
 
 
@@ -254,9 +296,15 @@ async def clasificar_endpoint(payload: MensajeUsuario, authorization: str = Head
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Token inválido o ausente")
 
-    if contiene_lenguaje_ofensivo(payload.mensaje) or validar_mensaje_con_openai(payload.mensaje):
-        print(f"🚨 Intento bloqueado ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})")
-        raise HTTPException(status_code=400, detail="El mensaje contiene lenguaje inapropiado o no permitido.")
+    # Validar con filtro mejorado
+    es_ofensivo, palabra_detectada = contiene_lenguaje_ofensivo(payload.mensaje)
+    
+    if es_ofensivo or validar_mensaje_con_openai(payload.mensaje):
+        print(f"🚨 Intento bloqueado ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')}): {payload.mensaje}")
+        raise HTTPException(
+            status_code=400, 
+            detail="El mensaje contiene lenguaje inapropiado. Por favor, usa un lenguaje respetuoso para registrar tus transacciones."
+        )
 
     return clasificar_gasto(payload.mensaje, authorization)
 
