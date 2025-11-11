@@ -120,8 +120,9 @@ def clasificador_local(mensaje: str):
     ]
     palabras_gasto = [
         "gaste", "pague", "compre", "inverti", "saque", "deposite", "consumi", "use",
-        "donacion", "doné", "pagado", "realice un pago", "invertido", "gastado"
+        "donacion", "done", "pagado", "realice un pago", "invertido", "gastado"
     ]
+
     tipo = "income" if any(p in msg for p in palabras_ingreso) else "expense" if any(p in msg for p in palabras_gasto) else "expense"
 
     # CATEGORÍAS AMPLIADAS
@@ -132,8 +133,8 @@ def clasificador_local(mensaje: str):
             "pan", "pastel", "postre", "lonche", "antojito", "snack", "botana", "super", "mercado"
         ],
         "Transporte": [
-            "uber", "taxi", "camion", "autobus", "metro", "gasolina", "pasaje", "peaje",
-            "transporte", "carro", "vehiculo", "auto", "camioneta", "bicicleta", "moto",
+            "transporte", "uber", "taxi", "camion", "autobus", "metro", "gasolina", "pasaje", "peaje",
+            "carro", "vehiculo", "auto", "camioneta", "bicicleta", "moto",
             "combustible", "estacionamiento", "boleto", "metrobus"
         ],
         "Entretenimiento": [
@@ -175,38 +176,32 @@ def clasificador_local(mensaje: str):
         ]
     }
 
-        # ==========================
-    # DETECCIÓN DE CATEGORÍA
-    # ==========================
-    coincidencias = {}
-
     # Contar coincidencias por categoría
+    coincidencias = {}
     for cat, palabras in categorias.items():
-        coincidencias[cat] = sum(1 for p in palabras if p in msg)
+        coincidencias[cat] = sum(
+            1 for p in palabras
+            if re.search(rf'\b{re.escape(p)}\b', msg)  # Coincidencia exacta de palabra
+        )
 
-    # Obtener la categoría con más coincidencias reales
+    # Determinar categoría con mayor coincidencia
     categoria = max(coincidencias, key=coincidencias.get)
     if coincidencias[categoria] == 0:
-        # Si no hubo coincidencias, intenta inferir por tiendas o palabras clave
+        # Fallback por tiendas
         if any(tienda in msg for tienda in ["oxxo", "seven", "7eleven", "gasolinera"]):
             categoria = "Transporte"
         elif any(tienda in msg for tienda in ["walmart", "soriana", "chedraui", "bodega", "super"]):
             categoria = "Hogar"
         elif any(tienda in msg for tienda in ["netflix", "spotify", "disney", "hbo", "youtube"]):
             categoria = "Entretenimiento"
-        elif any(tienda in msg for tienda in ["warson", "warsom", "warzon", "warzone"]):
-            categoria = "Otros"  # tiendas desconocidas o genéricas
         else:
             categoria = "Otros"
 
-    # ==========================
-    # DETECCIÓN DE MONTO
-    # ==========================
+    # Extraer monto
     match = re.search(r'\$?\s*(\d+(?:[.,]\d{1,2})?)', mensaje)
     monto = float(match.group(1).replace(',', '.')) if match else 0.0
 
     return tipo, categoria, monto, msg_original.capitalize()
-
 
 # ==============================
 # FUNCIÓN PRINCIPAL
