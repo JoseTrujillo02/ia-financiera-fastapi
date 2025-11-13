@@ -106,119 +106,92 @@ def validar_mensaje_con_openai(mensaje: str) -> bool:
         print("⚠ Error al usar OpenAI Moderation:", e)
         return False
 
-# ==============================
-# CLASIFICADOR LOCAL CON CATEGORÍAS EXTENDIDAS
-# ==============================
 def clasificador_local(mensaje: str):
     msg_original = mensaje.strip()
     msg = eliminar_acentos(msg_original.lower())
 
     # Detectar tipo (ingreso o gasto)
     palabras_ingreso = [
-        "recibi", "gane", "me depositaron", "ingreso", "ingresaron", "me transfirieron",
-        "cobre", "me pagaron", "obtuve", "entrada", "premio", "venta", "vendi", "me dieron"
+        "recibi", "gane", "me depositaron", "ingreso", "ingresaron", 
+        "me transfirieron", "cobre", "me pagaron", "obtuve", 
+        "entrada", "premio", "venta", "vendi", "me dieron"
     ]
     palabras_gasto = [
-        "gaste", "pague", "compre", "inverti", "saque", "deposite", "consumi", "use",
-        "donacion", "done", "pagado", "realice un pago", "invertido", "gastado"
+        "gaste", "pague", "compre", "inverti", "saque", "deposite", 
+        "consumi", "use", "donacion", "done", "pagado", 
+        "realice un pago", "invertido", "gastado"
     ]
 
-    tipo = "income" if any(p in msg for p in palabras_ingreso) else "expense" if any(p in msg for p in palabras_gasto) else "expense"
+    tipo = "income" if any(p in msg for p in palabras_ingreso) else \
+           "expense" if any(p in msg for p in palabras_gasto) else "expense"
 
-    # CATEGORÍAS AMPLIADAS
+    # CATEGORÍAS
     categorias = {
         "Comida": [
-            "comida", "restaurante", "taco", "hamburguesa", "pizza", "pollo", "pescado",
-            "cena", "almuerzo", "desayuno", "antojito", "refresco", "bebida", "cafe", "te",
-            "pan", "pastel", "postre", "lonche", "antojito", "snack", "botana", "super", "mercado"
+            "comida", "restaurante", "taco", "hamburguesa", "pizza", "pollo",
+            "pescado", "cena", "almuerzo", "desayuno", "antojito", "refresco",
+            "bebida", "cafe", "te", "pan", "pastel", "postre", "lonche",
+            "snack", "botana", "super", "mercado"
         ],
         "Transporte": [
-            "transporte", "uber", "taxi", "camion", "autobus", "metro", "gasolina", "pasaje", "peaje",
-            "carro", "vehiculo", "auto", "camioneta", "bicicleta", "moto",
-            "combustible", "estacionamiento", "boleto", "metrobus"
+            "uber", "taxi", "camion", "autobus", "metro", "gasolina", "pasaje",
+            "peaje", "transporte", "carro", "vehiculo", "auto", "camioneta",
+            "bicicleta", "moto", "combustible", "estacionamiento", "boleto",
+            "metrobus", "tren"
         ],
         "Entretenimiento": [
-            "cine", "pelicula", "concierto", "fiesta", "juego", "videojuego", "netflix",
-            "spotify", "disney", "hbo", "series", "musica", "deporte", "futbol", "baloncesto",
-            "teatro", "bar", "discoteca", "parque", "evento", "torneo", "show"
+            "cine", "pelicula", "concierto", "fiesta", "juego", "videojuego",
+            "netflix", "spotify", "disney", "hbo", "series", "musica", "deporte",
+            "futbol", "teatro", "bar", "discoteca", "parque", "evento", "torneo"
         ],
         "Salud": [
-            "doctor", "medicina", "farmacia", "dentista", "hospital", "clinica", "consulta",
-            "operacion", "cirugia", "terapia", "fisioterapia", "gimnasio", "entrenamiento",
-            "nutriologo", "psicologo", "optica", "laboratorio", "analisis", "examen", "vacuna"
+            "doctor", "medicina", "farmacia", "dentista", "hospital", "clinica",
+            "consulta", "operacion", "cirugia", "terapia", "fisioterapia",
+            "gimnasio", "nutriologo", "psicologo", "optica", "laboratorio",
+            "analisis", "examen", "vacuna"
         ],
         "Educacion": [
-            "libro", "escuela", "colegiatura", "universidad", "curso", "taller", "clase",
-            "seminario", "capacitacion", "maestria", "diplomado", "tutorial", "coaching",
-            "plataforma educativa", "suscripcion", "beca", "educacion"
+            "libro", "escuela", "colegiatura", "universidad", "curso", "taller",
+            "clase", "seminario", "capacitacion", "maestria", "diplomado"
         ],
         "Hogar": [
-            "renta", "luz", "agua", "internet", "telefono", "gas", "hogar", "limpieza",
-            "muebles", "decoracion", "plomeria", "electricidad", "reparacion", "electrodomestico",
-            "lavanderia", "jardin", "vivienda", "supermercado", "herramienta"
-        ],
-        "Ropa": [
-            "ropa", "camisa", "pantalon", "zapato", "tenis", "vestido", "abrigo", "blusa",
-            "falda", "bufanda", "accesorio", "sombrero", "reloj", "moda", "jeans", "playera"
-        ],
-        "Mascotas": [
-            "perro", "gato", "mascota", "veterinario", "croquetas", "alimento", "correa",
-            "adopcion", "jaula", "juguete para perro", "juguete para gato", "limpieza animal"
-        ],
-        "Trabajo": [
-            "oficina", "computadora", "laptop", "teclado", "monitor", "papeleria", "impresora",
-            "software", "licencia", "suscripcion", "proyecto", "cliente", "material", "herramienta",
-            "nomina", "empleo", "jornada", "sueldo", "salario", "servicio profesional"
+            "renta", "luz", "agua", "internet", "telefono", "gas", "hogar",
+            "limpieza", "muebles", "decoracion", "plomeria", "reparacion",
+            "electrodomestico"
         ],
         "Otros": [
-            "donacion", "impuesto", "seguro", "credito", "banco", "deuda", "efectivo",
-            "retiro", "transferencia", "ahorro", "prestamo", "gasto", "cuenta", "servicio"
+            "donacion", "impuesto", "seguro", "credito", "banco", "deuda",
+            "efectivo", "retiro", "transferencia", "ahorro", "prestamo"
         ]
     }
 
-    # Contar coincidencias por categoría
-    coincidencias = {}
+    categoria = "Otros"
     for cat, palabras in categorias.items():
-        coincidencias[cat] = sum(
-            1 for p in palabras
-            if re.search(rf'\b{re.escape(p)}\b', msg)  # Coincidencia exacta de palabra
-        )
-
-    # Determinar categoría con mayor coincidencia
-    categoria = max(coincidencias, key=coincidencias.get)
-    if coincidencias[categoria] == 0:
-        # Fallback por tiendas
-        if any(tienda in msg for tienda in ["oxxo", "seven", "7eleven", "gasolinera"]):
-            categoria = "Transporte"
-        elif any(tienda in msg for tienda in ["walmart", "soriana", "chedraui", "bodega", "super"]):
-            categoria = "Hogar"
-        elif any(tienda in msg for tienda in ["netflix", "spotify", "disney", "hbo", "youtube"]):
-            categoria = "Entretenimiento"
-        else:
-            categoria = "Otros"
+        if any(p in msg for p in palabras):
+            categoria = cat
+            break
 
     # ==========================
-# DETECCIÓN DE MONTO ROBUSTA
-# ==========================
-match = re.search(r'\$?\s*([\d.,]+)', mensaje)
+    # DETECCIÓN DE MONTO ROBUSTA
+    # ==========================
+    match = re.search(r'\$?\s*([\d.,]+)', mensaje)
 
-if match:
-    monto_str = match.group(1)
+    if match:
+        monto_str = match.group(1)
 
-    # Eliminar separadores de miles (coma o punto si no son decimales)
-    # Ejemplo: "70,000" → "70000" ; "1.200,50" → "1200.50"
-    monto_str = monto_str.replace(" ", "").replace(",", "")
-    try:
-        monto = float(monto_str)
-    except ValueError:
-        # Si hay error (por mezcla de separadores), intentar conversión flexible
-        monto_str = monto_str.replace(".", "").replace(",", ".")
-        monto = float(monto_str)
-else:
-    monto = 0.0
+        # Eliminar separadores de miles
+        monto_str = monto_str.replace(" ", "").replace(",", "")
 
+        try:
+            monto = float(monto_str)
+        except ValueError:
+            monto_str = monto_str.replace(".", "").replace(",", ".")
+            monto = float(monto_str)
+    else:
+        monto = 0.0
 
     return tipo, categoria, monto, msg_original.capitalize()
+
 
 # ==============================
 # FUNCIÓN PRINCIPAL
