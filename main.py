@@ -197,9 +197,26 @@ def clasificador_local(mensaje: str):
         else:
             categoria = "Otros"
 
-    # Extraer monto
-    match = re.search(r'\$?\s*(\d+(?:[.,]\d{1,2})?)', mensaje)
-    monto = float(match.group(1).replace(',', '.')) if match else 0.0
+    # ==========================
+# DETECCIÓN DE MONTO ROBUSTA
+# ==========================
+match = re.search(r'\$?\s*([\d.,]+)', mensaje)
+
+if match:
+    monto_str = match.group(1)
+
+    # Eliminar separadores de miles (coma o punto si no son decimales)
+    # Ejemplo: "70,000" → "70000" ; "1.200,50" → "1200.50"
+    monto_str = monto_str.replace(" ", "").replace(",", "")
+    try:
+        monto = float(monto_str)
+    except ValueError:
+        # Si hay error (por mezcla de separadores), intentar conversión flexible
+        monto_str = monto_str.replace(".", "").replace(",", ".")
+        monto = float(monto_str)
+else:
+    monto = 0.0
+
 
     return tipo, categoria, monto, msg_original.capitalize()
 
