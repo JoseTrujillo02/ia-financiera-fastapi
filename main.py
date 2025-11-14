@@ -29,13 +29,10 @@ except Exception as e:
 BACKEND_URL = os.getenv("BACKEND_URL")
 
 # ==============================
-# CONFIGURACIÓN DE FASTAPI
+# FASTAPI
 # ==============================
-app = FastAPI(title="IA Financiera - Clasificador con categorías ampliadas y filtro extremo")
+app = FastAPI(title="IA Financiera - Ajustada para Android")
 
-# ==============================
-# MODELOS
-# ==============================
 class MensajeUsuario(BaseModel):
     mensaje: str
 
@@ -47,7 +44,7 @@ class ClasificacionRespuesta(BaseModel):
     date: str
 
 # ==============================
-# UTILIDADES DE TEXTO
+# UTILIDADES
 # ==============================
 def eliminar_acentos(texto: str) -> str:
     return "".join(
@@ -57,75 +54,52 @@ def eliminar_acentos(texto: str) -> str:
 
 def normalizar_texto(texto: str) -> str:
     texto = eliminar_acentos(texto.lower())
-    reemplazos = {
-        "@": "a", "$": "s", "1": "i", "!": "i", "3": "e", "0": "o",
-        "4": "a", "7": "t", "5": "s", "8": "b", "*": "", "-": "", ".": ""
-    }
+    reemplazos = {"@": "a", "$": "s", "3": "e", "1": "i", "4": "a", "*": ""}
     for simb, letra in reemplazos.items():
         texto = texto.replace(simb, letra)
     return re.sub(r'[^a-zñ]+', '', texto)
 
-def registrar_bloqueo(mensaje: str, motivo: str):
-    os.makedirs("logs", exist_ok=True)
-    ruta = os.path.join("logs", "filtro.log")
-    with open(ruta, "a", encoding="utf-8") as f:
-        f.write(f"[{datetime.now()}] Bloqueado ({motivo}): {mensaje}\n")
-    print(f"🚫 Bloqueado ({motivo})")
-
 # ==============================
-# FILTRO DE LENGUAJE OFENSIVO
+# FILTRO LENGUAJE OFENSIVO
 # ==============================
-PATRONES_OFENSIVOS = [
-    "pendej", "idiot", "imbecil", "estupid", "put", "ching", "verga", "mamad",
-    "cabron", "culer", "mierd", "sexo", "porn", "follar", "coger", "chupar",
-    "vagin", "pene", "nalg", "teta", "boob", "pito", "maric", "joto", "zorr",
-    "perr", "violac", "asesin", "suicid", "degoll", "ahorc", "ptm", "vrg", "hpta"
+PATRONES = [
+    "pendej","idiot","imbecil","estupid","put","ching","verga","mamad","cabron","culer",
+    "mierd","sexo","porn","follar","coger","chupar","vagin","pene","nalg","teta","boob",
+    "maric","joto","zorr","asesin","suicid","degoll","ptm","vrg"
 ]
 
 def contiene_lenguaje_ofensivo(texto: str) -> bool:
-    texto_normal = normalizar_texto(texto)
-    for patron in PATRONES_OFENSIVOS:
-        if patron in texto_normal:
-            registrar_bloqueo(texto, f"Coincidencia: {patron}")
-            return True
-    if re.search(r"[a-z]{1,3}\*{2,}[a-z]*", texto.lower()):
-        registrar_bloqueo(texto, "Censura con asteriscos")
-        return True
-    return False
+    t = normalizar_texto(texto)
+    return any(p in t for p in PATRONES) or re.search(r"[a-z]{1,3}\*{2,}[a-z]*", texto.lower())
 
 def validar_mensaje_con_openai(mensaje: str) -> bool:
     if not client:
         return False
     try:
         result = client.moderations.create(model="omni-moderation-latest", input=mensaje)
-        flagged = result.results[0].flagged
-        if flagged:
-            registrar_bloqueo(mensaje, "OpenAI Moderation")
-        return flagged
-    except Exception as e:
-        print("⚠ Error al usar OpenAI Moderation:", e)
+        return result.results[0].flagged
+    except:
         return False
 
+# ==============================
+# CLASIFICADOR LOCAL
+# ==============================
 def clasificador_local(mensaje: str):
+
     msg_original = mensaje.strip()
     msg = eliminar_acentos(msg_original.lower())
 
-    # Detectar tipo (ingreso o gasto)
     palabras_ingreso = [
-        "recibi", "gane", "me depositaron", "ingreso", "ingresaron", 
-        "me transfirieron", "cobre", "me pagaron", "obtuve", 
-        "entrada", "premio", "venta", "vendi", "me dieron"
+        "recibi","gane","me depositaron","ingreso","ingresaron","me transfirieron",
+        "cobre","me pagaron","obtuve","premio","venta","vendi"
     ]
     palabras_gasto = [
-        "gaste", "pague", "compre", "inverti", "saque", "deposite", 
-        "consumi", "use", "donacion", "done", "pagado", 
-        "realice un pago", "invertido", "gastado"
+        "gaste","pague","compre","inverti","saque","deposite",
+        "consumi","use","donacion","pagado","gastado"
     ]
 
-    tipo = "income" if any(p in msg for p in palabras_ingreso) else \
-           "expense" if any(p in msg for p in palabras_gasto) else "expense"
+    tipo = "income" if any(p in msg for p in palabras_ingreso) else "expense"
 
-    # CATEGORÍAS
     categorias = {
         "Comida": [
             "comida", "restaurante", "taco", "hamburguesa", "pizza", "pollo",
@@ -165,40 +139,47 @@ def clasificador_local(mensaje: str):
         ]
     }
 
-    categoria = "Otros"
+    # ===== CONTADOR DE PALABRAS =====
+    coincidencias = {}
     for cat, palabras in categorias.items():
-        if any(p in msg for p in palabras):
-            categoria = cat
-            break
+        coincidencias[cat] = sum(1 for p in palabras if re.search(rf"\b{p}\b", msg))
 
-    # ==========================
-    # DETECCIÓN DE MONTO ROBUSTA
-    # ==========================
-    match = re.search(r'\$?\s*([\d.,]+)', mensaje)
+    categoria = max(coincidencias, key=coincidencias.get)
 
-    if match:
-        monto_str = match.group(1)
+    # ⚠ Si no coincidió nada → error que Android sabe manejar
+    if coincidencias[categoria] == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No se pudo identificar la categoría. Menciona en qué gastaste o de dónde proviene el ingreso."
+        )
 
-        # Eliminar separadores de miles
-        monto_str = monto_str.replace(" ", "").replace(",", "")
+    # ===== EXTRACCIÓN DE MONTO ROBUSTA =====
+    match = re.search(r"\$?\s*([\d.,]+)", mensaje)
+    if not match:
+        raise HTTPException(
+            status_code=400,
+            detail="No se pudo identificar un monto válido. Por favor, menciona claramente la cantidad."
+        )
 
-        try:
-            monto = float(monto_str)
-        except ValueError:
-            monto_str = monto_str.replace(".", "").replace(",", ".")
-            monto = float(monto_str)
-    else:
-        monto = 0.0
+    monto_str = match.group(1).replace(",", "").replace(".", "")
+    monto = float(monto_str)
+
+    if monto <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No se pudo identificar un monto válido. Por favor, menciona claramente la cantidad."
+        )
 
     return tipo, categoria, monto, msg_original.capitalize()
-
 
 # ==============================
 # FUNCIÓN PRINCIPAL
 # ==============================
 def clasificar_gasto(mensaje: str, token: str):
+
     ahora = datetime.now()
     tipo, categoria, monto, descripcion = clasificador_local(mensaje)
+
     data = {
         "type": tipo,
         "amount": monto,
@@ -207,10 +188,13 @@ def clasificar_gasto(mensaje: str, token: str):
         "date": ahora.strftime("%Y-%m-%dT%H:%M:%S")
     }
 
+    # Enviar al backend real
     headers = {"Authorization": token, "Content-Type": "application/json"}
+    try:
+        requests.post(BACKEND_URL, json=data, headers=headers, timeout=10)
+    except:
+        pass
 
-    response = requests.post(BACKEND_URL, json=data, headers=headers, timeout=10)
-    print(f"📤 Enviado al backend: {response.status_code}")
     return data
 
 # ==============================
@@ -218,11 +202,13 @@ def clasificar_gasto(mensaje: str, token: str):
 # ==============================
 @app.post("/clasificar_gasto", response_model=ClasificacionRespuesta)
 async def clasificar_endpoint(payload: MensajeUsuario, authorization: str = Header(...)):
+
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Token inválido o ausente")
 
     if contiene_lenguaje_ofensivo(payload.mensaje):
-        raise HTTPException(status_code=400, detail="El mensaje contiene lenguaje ofensivo o censurado.")
+        raise HTTPException(status_code=400, detail="El mensaje contiene lenguaje ofensivo o no permitido.")
+
     if validar_mensaje_con_openai(payload.mensaje):
         raise HTTPException(status_code=400, detail="El mensaje contiene contenido inapropiado (Moderation).")
 
@@ -230,4 +216,4 @@ async def clasificar_endpoint(payload: MensajeUsuario, authorization: str = Head
 
 @app.get("/")
 async def root():
-    return {"status": "ok", "message": "IA Financiera con filtro y categorías ampliadas funcionando 🚀"}
+    return {"status": "ok", "message": "IA lista y sincronizada con Android 🚀"}
