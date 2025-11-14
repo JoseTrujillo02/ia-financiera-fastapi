@@ -101,43 +101,159 @@ def clasificador_local(mensaje: str):
     tipo = "income" if any(p in msg for p in palabras_ingreso) else "expense"
 
     categorias = {
-        "Comida": [
-            "comida", "restaurante", "taco", "hamburguesa", "pizza", "pollo",
-            "pescado", "cena", "almuerzo", "desayuno", "antojito", "refresco",
-            "bebida", "cafe", "te", "pan", "pastel", "postre", "lonche",
-            "snack", "botana", "super", "mercado"
-        ],
-        "Transporte": [
-            "uber", "taxi", "camion", "autobus", "metro", "gasolina", "pasaje",
-            "peaje", "transporte", "carro", "vehiculo", "auto", "camioneta",
-            "bicicleta", "moto", "combustible", "estacionamiento", "boleto",
-            "metrobus", "tren"
-        ],
-        "Entretenimiento": [
-            "cine", "pelicula", "concierto", "fiesta", "juego", "videojuego",
-            "netflix", "spotify", "disney", "hbo", "series", "musica", "deporte",
-            "futbol", "teatro", "bar", "discoteca", "parque", "evento", "torneo"
-        ],
-        "Salud": [
-            "doctor", "medicina", "farmacia", "dentista", "hospital", "clinica",
-            "consulta", "operacion", "cirugia", "terapia", "fisioterapia",
-            "gimnasio", "nutriologo", "psicologo", "optica", "laboratorio",
-            "analisis", "examen", "vacuna"
-        ],
-        "Educacion": [
-            "libro", "escuela", "colegiatura", "universidad", "curso", "taller",
-            "clase", "seminario", "capacitacion", "maestria", "diplomado"
-        ],
-        "Hogar": [
-            "renta", "luz", "agua", "internet", "telefono", "gas", "hogar",
-            "limpieza", "muebles", "decoracion", "plomeria", "reparacion",
-            "electrodomestico"
-        ],
-        "Otros": [
-            "donacion", "impuesto", "seguro", "credito", "banco", "deuda",
-            "efectivo", "retiro", "transferencia", "ahorro", "prestamo"
-        ]
-    }
+    "Comida": [
+        # Lugares y tipos
+        "comida", "restaurante", "cocina", "fondita", "antojito", "antojitos",
+        "taco", "tacos", "hamburguesa", "pizza", "pasta", "mariscos", "sushi",
+        "pollo", "pescado", "carne", "barbacoa", "birria", "pozole", "enchilada",
+        "torta", "tortas", "lonche", "tamales", "gorditas", "sopes", "quesadilla",
+        "hotdog", "boneless", "alitas",
+
+        # Bebidas
+        "refresco", "coca", "pepsi", "bebida", "cafe", "té", "te", "agua",
+        "jugo", "cerveza", "cheve", "vino", "licor",
+
+        # Dulces / postres
+        "pan", "panaderia", "pastel", "postre", "galleta", "chocolate", "dulces",
+        "helado", "nieve", "donas",
+
+        # Supermercados
+        "super", "mercado", "abarrotes", "tienda", "bodega", "walmart", "chedraui",
+        "soriana", "sam’s", "costco", "oxxo", "seven", "7eleven"
+    ],
+
+    "Transporte": [
+        "uber", "didi", "cabify", "taxi", "transporte", "colectivo", "camion",
+        "autobus", "bus", "metro", "metrobus", "suburbano", "tren", "peaje",
+        "caseta", "estacionamiento", "parking",
+
+        # Vehículos
+        "gasolina", "diesel", "combustible", "carro", "auto", "vehiculo",
+        "camioneta", "moto", "bicicleta", "uber moto",
+
+        # Refacciones
+        "llanta", "aceite", "bujia", "refaccion", "taller", "mecanico",
+        "alineacion", "balanceo", "lavado de coche", "verificacion"
+    ],
+
+    "Entretenimiento": [
+        "cine", "pelicula", "estreno", "concierto", "fiesta", "evento", "festival",
+        "conferencia", "show", "torneo", "karaoke",
+
+        # Streaming
+        "netflix", "hbo", "max", "disney", "prime", "spotify", "youtube premium",
+        "apple music", "paramount", "crunchyroll",
+
+        # Videojuegos
+        "juego", "videojuego", "steam", "epic games", "playstation", "xbox",
+        "nintendo", "roblox", "fortnite", "fifa",
+
+        # Parques y actividades
+        "parque", "boliche", "billar", "bar", "antro", "discoteca"
+    ],
+
+    "Salud": [
+        "doctor", "doctora", "consulta", "medico", "enfermera",
+        "hospital", "clinica", "consultorio", "farmacia", "medicina",
+
+        # Servicios
+        "dentista", "odontologo", "ortodoncia", "limpieza dental",
+        "terapia", "fisioterapia", "psicologo", "nutriologo", "gimnasio",
+        "spa", "masaje",
+
+        # Gastos médicos
+        "analisis", "estudio", "examen", "laboratorio", "ultrasonido",
+        "radiografia", "receta", "inyeccion", "vacuna",
+
+        # Seguros
+        "seguro medico", "seguro de gastos medicos", "aseguradora"
+    ],
+
+    "Educacion": [
+        "escuela", "clase", "universidad", "prepa", "colegiatura", "pago escolar",
+        "primaria", "secundaria", "kinder", "maestria", "doctorado",
+
+        # Libros y materiales
+        "libro", "cuaderno", "papeleria", "mochila", "lapiz",
+
+        # Cursos
+        "curso", "taller", "seminario", "capacitacion", "certificacion",
+        "plataforma educativa", "udemy", "coursera", "platzi", "domestika",
+
+        # Apps educativas
+        "duolingo", "babbel"
+    ],
+
+    "Hogar": [
+        "renta", "hipoteca", "agua", "luz", "cfe", "internet", "izzi", "telmex",
+        "telefono", "gas", "propano", "hogar",
+
+        # Artículos
+        "lavadora", "refrigerador", "estufa", "microondas", "licuadora",
+        "muebles", "sillon", "colchon", "cama", "cobija", "ropa de cama",
+        "decoracion", "planta",
+
+        # Reparaciones
+        "plomeria", "electricidad", "pintura", "albanil", "herramienta",
+        "reparacion", "carpinteria",
+
+        # Tiendas
+        "home depot", "lowes", "liverpool", "sears"
+    ],
+
+    "Ropa": [
+        "ropa", "camisa", "playera", "pantalon", "jeans", "short", "vestido",
+        "falda", "blusa", "sueter", "abrigo", "tenis", "zapato", "sandalia",
+        "calcetin", "gorra", "ropa interior",
+
+        # Accesorios
+        "collar", "anillo", "reloj", "pulsera", "aretes", "lentes",
+
+        # Marcas
+        "nike", "adidas", "puma", "zara", "pull and bear", "bershka",
+        "h&m", "aeropostale", "liverpool", "gucci"
+    ],
+
+    "Mascotas": [
+        "perro", "gato", "mascota", "veterinario", "alimento", "croquetas",
+        "juguete", "correa", "camita", "baño para perro", "corte",
+    ],
+
+    "Trabajo": [
+        "oficina", "papeleria", "computadora", "laptop", "impresora", "teclado",
+        "mouse", "monitor", "software", "licencia", "suscripcion", "herramienta",
+
+        "material", "proyecto", "cliente", "servicio profesional"
+    ],
+
+    "Finanzas": [
+        "impuesto", "iva", "isr", "multas", "recargo", "banco", "comision",
+        "retiro", "deposito", "transferencia", "ahorro", "prestamo", "credito",
+        "tarjeta", "intereses"
+    ],
+
+    "Ingresos": [
+        "aguinaldo", "bono", "salario", "sueldo", "comision", "propina",
+        "prestacion", "ingreso extra", "venta", "pago recibido"
+    ],
+
+    "Tecnologia": [
+        "celular", "telefono", "iphone", "samsung", "xiaomi", "tablet",
+        "computadora", "laptop", "monitor", "audifonos", "bocina",
+        "cargador", "usb", "memoria", "tarjeta sd", "router"
+    ],
+
+    "Servicios personales": [
+        "corte de cabello", "peluqueria", "barberia", "maquillaje", "uñas",
+        "spa", "masaje", "depilacion", "cejas", "tinte"
+    ],
+
+    "Otros": [
+        "donacion", "regalo", "servicio", "compra", "gasto", "imprevisto",
+        "evento", "cita", "trámite"
+    ]
+}
+
 
     # ===== CONTADOR DE PALABRAS =====
     coincidencias = {}
