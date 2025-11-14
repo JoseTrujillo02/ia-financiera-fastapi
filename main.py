@@ -101,158 +101,302 @@ def clasificador_local(mensaje: str):
     tipo = "income" if any(p in msg for p in palabras_ingreso) else "expense"
 
     categorias = {
+    # ============================================================
+    # 🥘 COMIDA (MUY AMPLIADA)
+    # ============================================================
     "Comida": [
-        # Lugares y tipos
-        "comida", "restaurante", "cocina", "fondita", "antojito", "antojitos",
-        "taco", "tacos", "hamburguesa", "pizza", "pasta", "mariscos", "sushi",
-        "pollo", "pescado", "carne", "barbacoa", "birria", "pozole", "enchilada",
-        "torta", "tortas", "lonche", "tamales", "gorditas", "sopes", "quesadilla",
-        "hotdog", "boneless", "alitas",
+        # Tipos de comida
+        "comida", "restaurante", "antojito", "antojitos", "cena", "almuerzo",
+        "desayuno", "snack", "botana", "dulces", "postre", "panaderia",
+        "panadería", "pasteleria", "dulcería",
+
+        # Comida Mexicana
+        "taco", "tacos", "torta", "tamales", "pozole",
+        "sopes", "gorditas", "enchiladas", "chilaquiles", "quesadilla", "burrito",
+        "birria", "barbacoa", "menudo", "pambazo", "mollete", "huarache",
+
+        # Comida rápida
+"hamburguesa", "hamburguesas", "hamburguesita",
+"hotdog", "hotdogs", "jocho", "jochos",
+"papas", "papitas", "papas fritas", "papas a la francesa",
+"boneless", "alitas", "wings",
+"tenders", "nuggets", "fingers",
+"pizza", "pizzas", "rebanada de pizza",
+"cheetos", "doritos", "sabritas", "ruffles", "takis", "churrumais",
+"tostitos", "pringles", "camaronazo", "cacahuates", "cacahuate enchilado",
+
+# Sandwiches / tortas calientes / wraps
+"torta", "tortas", "baguette", "sándwich", "sandwich",
+"wrap", "wraps", "burrito", "burritos", "gringa", "quesadilla frita",
+
+# Pollo frito
+"pollo frito", "bucket de pollo",
+"kfc", "kentucky", "churchs", "pollo loco",
+
+# Hamburgueserías y combos
+"combo", "combo grande", "combo mediano", "combo chico",
+"mcdonalds", "burger king", "sonic", "carls jr", "wendys",
+"baconator", "big mac", "whopper", "doble whopper", "cuarto de libra",
+
+# Comida callejera
+"tacos de canasta", "tacos dorados", "flautas", "huarache frito",
+"tacos árabes", "tacos de suadero", "tacos de pastor", "tacos de tripa",
+"tacos dorados",
+
+# Locales de comida rápida México / LATAM
+"little caesars", "dominos", "pizzahut", "papa johns",
+"subway", "wingstop", "buffalo wild wings", "pollo feliz",
+"vips", "toks", "el portón",
+
+# Hot snacks y frituras
+"nachos", "nachos con queso", "pretzel", "palomitas",
+"churros", "banderillas", "corn dog", "piruleta",
+
+# Maruchan / ramen rápido
+"maruchan", "instant ramen", "sopa instantánea",
+
+# Bebidas asociadas a comida rápida
+"malteada", "milkshake", "refresco grande", "refresco mediano",
+"frappe", "smoothie",
+
+# Postres rápidos
+"helado soft", "sundae", "mcdouble", "conito", "oreo frappe",
+
+# Food trucks
+"foodtruck", "food truck", "camioncito de comida"
+
+
+        # Internacional
+        "sushi", "ramen", "pasta", "lasagna", "curry", "wrap", "ensalada",
+        "shawarma", "kebab", "pita", "falafel", "dumplings", "poke",
+
+        # Carnes
+        "pollo", "carne", "res", "cerdo", "pescado", "mariscos", "atun",
+        "salmon", "shrimp", "camarones", "ceviche",
 
         # Bebidas
-        "refresco", "coca", "pepsi", "bebida", "cafe", "té", "te", "agua",
-        "jugo", "cerveza", "cheve", "vino", "licor",
+        "bebida", "refresco", "coca", "pepsi", "cola", "jugo", "agua",
+        "té", "te", "cafe", "licuado", "malteada",
 
-        # Dulces / postres
-        "pan", "panaderia", "pastel", "postre", "galleta", "chocolate", "dulces",
-        "helado", "nieve", "donas",
+        # Alcohol
+        "cerveza", "cheve", "vino", "whisky", "ron", "vodka", "tequila",
+        "mezcal", "michelada",
+
+        # Postres
+        "pastel", "galleta", "donas", "helado", "nieve", "pay", "chocolate",
 
         # Supermercados
-        "super", "mercado", "abarrotes", "tienda", "bodega", "walmart", "chedraui",
-        "soriana", "sam’s", "costco", "oxxo", "seven", "7eleven"
+        "super", "supermercado", "mercado", "tienda", "bodega", "abarrotes",
+        "walmart", "soriana", "chedraui", "sam’s", "costco", "oxxo",
+        "seven", "7eleven", "farmacia guadalajara", "bodega aurrera",
+
+        # Franquicias
+        "mcdonalds", "burger king", "starbucks", "kfc", "dominos", "little caesars",
+        "subway", "carls jr", "wingstop", "panda express", "toks"
     ],
 
+    # ============================================================
+    # 🚗 TRANSPORTE (MUY AMPLIADO)
+    # ============================================================
     "Transporte": [
-        "uber", "didi", "cabify", "taxi", "transporte", "colectivo", "camion",
-        "autobus", "bus", "metro", "metrobus", "suburbano", "tren", "peaje",
-        "caseta", "estacionamiento", "parking",
+        # Apps
+        "uber", "didi", "cabify", "inDriver", "beat",
 
         # Vehículos
-        "gasolina", "diesel", "combustible", "carro", "auto", "vehiculo",
-        "camioneta", "moto", "bicicleta", "uber moto",
+        "carro", "vehiculo", "auto", "camioneta", "moto",
+        "bicicleta", "e-bike", "scooter", "patin", "motocicleta",
+
+        # Transportes públicos
+        "camion", "autobus", "bus", "metro", "suburbano", "tren",
+        "metrobus", "trolebús", "cablebus", "taxi", "combi", "colectivo",
+
+        # Combustible
+        "gasolina", "diesel", "combustible", "gasolinera", "pemex",
+        "premium", "magna",
 
         # Refacciones
-        "llanta", "aceite", "bujia", "refaccion", "taller", "mecanico",
-        "alineacion", "balanceo", "lavado de coche", "verificacion"
+        "llanta", "llantas", "balatas", "aceite", "filtro", "bujia",
+        "amortiguadores", "escape", "radiador", "faros",
+
+        # Servicios mecánicos
+        "taller", "mecanico", "alineacion", "balanceo", "verificacion",
+        "lavado de coche", "detallado automotriz",
+
+        # Pagos de transporte
+        "peaje", "caseta", "estacionamiento", "parking", "boletos"
     ],
 
+    # ============================================================
+    # 🎮 ENTRETENIMIENTO (MEGA)
+    # ============================================================
     "Entretenimiento": [
-        "cine", "pelicula", "estreno", "concierto", "fiesta", "evento", "festival",
-        "conferencia", "show", "torneo", "karaoke",
+        # Eventos
+        "cine", "pelicula", "boletos", "concierto", "festival", "evento",
+        "torneo", "show", "teatro", "circo", "convención",
 
         # Streaming
-        "netflix", "hbo", "max", "disney", "prime", "spotify", "youtube premium",
-        "apple music", "paramount", "crunchyroll",
+        "netflix", "spotify", "hbo", "max", "disney", "apple music",
+        "youtube premium", "amazon prime", "crunchyroll", "paramount",
 
         # Videojuegos
-        "juego", "videojuego", "steam", "epic games", "playstation", "xbox",
-        "nintendo", "roblox", "fortnite", "fifa",
+        "juego", "videojuego", "steam", "epic games", "riot", "league of legends",
+        "valorant", "roblox", "fortnite", "minecraft", "playstation",
+        "xbox", "nintendo switch",
 
-        # Parques y actividades
-        "parque", "boliche", "billar", "bar", "antro", "discoteca"
+        # Actividades
+        "bar", "antro", "boliche", "billar", "karaoke", "casino", "escape room",
+
+        # Deportes
+        "gimnasio", "gym", "clase deportiva", "futbol", "basquetbol",
+        "natacion", "box", "yoga", "zumba"
     ],
 
+    # ============================================================
+    # 🏥 SALUD (MEGA)
+    # ============================================================
     "Salud": [
-        "doctor", "doctora", "consulta", "medico", "enfermera",
-        "hospital", "clinica", "consultorio", "farmacia", "medicina",
+        # Profesionales
+        "doctor", "doctora", "medico", "consulta", "farmacia",
+        "dentista", "odontologo", "psicologo", "nutriologo",
 
         # Servicios
-        "dentista", "odontologo", "ortodoncia", "limpieza dental",
-        "terapia", "fisioterapia", "psicologo", "nutriologo", "gimnasio",
-        "spa", "masaje",
+        "hospital", "clinica", "consultorio", "laboratorio",
+        "ultrasonido", "radiografia", "tomografia", "resonancia",
+        "inyeccion", "vacuna", "suturas",
 
-        # Gastos médicos
-        "analisis", "estudio", "examen", "laboratorio", "ultrasonido",
-        "radiografia", "receta", "inyeccion", "vacuna",
+        # Medicamentos
+        "medicina", "analgesico", "antibiotico", "antigripal",
+        "vitaminas", "suero", "jarabe",
+
+        # Cuidado personal
+        "spa", "masaje", "terapia", "fisioterapia",
 
         # Seguros
-        "seguro medico", "seguro de gastos medicos", "aseguradora"
+        "seguro medico", "gastos medicos", "aseguradora"
     ],
 
+    # ============================================================
+    # 📚 EDUCACIÓN (MUY AMPLIADA)
+    # ============================================================
     "Educacion": [
-        "escuela", "clase", "universidad", "prepa", "colegiatura", "pago escolar",
-        "primaria", "secundaria", "kinder", "maestria", "doctorado",
+        # Niveles
+        "escuela", "primaria", "secundaria", "prepa", "universidad",
+        "maestria", "doctorado", "colegiatura",
 
-        # Libros y materiales
-        "libro", "cuaderno", "papeleria", "mochila", "lapiz",
+        # Material
+        "libro", "libros", "cuadernos", "papeleria", "mochila",
+        "pluma", "lapiz", "marcadores",
+
+        # Plataformas
+        "udemy", "platzi", "domestika", "coursera", "khan academy",
+        "crehana", "skillshare",
 
         # Cursos
-        "curso", "taller", "seminario", "capacitacion", "certificacion",
-        "plataforma educativa", "udemy", "coursera", "platzi", "domestika",
-
-        # Apps educativas
-        "duolingo", "babbel"
+        "curso", "taller", "clase", "certificacion", "examen",
+        "seminario", "capacitacion"
     ],
 
+    # ============================================================
+    # 🏠 HOGAR (MUY COMPLETA)
+    # ============================================================
     "Hogar": [
-        "renta", "hipoteca", "agua", "luz", "cfe", "internet", "izzi", "telmex",
-        "telefono", "gas", "propano", "hogar",
+        # Servicios
+        "renta", "hipoteca", "agua", "luz", "cfe", "internet", "telmex",
+        "izzi", "totalplay", "gas", "propano",
 
-        # Artículos
-        "lavadora", "refrigerador", "estufa", "microondas", "licuadora",
-        "muebles", "sillon", "colchon", "cama", "cobija", "ropa de cama",
-        "decoracion", "planta",
+        # Artículos del hogar
+        "muebles", "cama", "colchon", "sillon", "mesa", "silla",
+        "electrodomestico", "refrigerador", "estufa", "lavadora",
+        "microondas", "licuadora", "ventilador", "aire acondicionado",
+
+        # Limpieza
+        "limpieza", "detergente", "cloro", "escoba", "trapeador",
+        "jabón", "desinfectante",
 
         # Reparaciones
-        "plomeria", "electricidad", "pintura", "albanil", "herramienta",
-        "reparacion", "carpinteria",
+        "plomeria", "electricidad", "pintura", "carpinteria",
+        "albanil", "herramienta", "reparacion",
 
         # Tiendas
-        "home depot", "lowes", "liverpool", "sears"
+        "home depot", "lowes", "liverpool", "sears", "bodega"
     ],
 
+    # ============================================================
+    # 👕 ROPA Y MODA
+    # ============================================================
     "Ropa": [
-        "ropa", "camisa", "playera", "pantalon", "jeans", "short", "vestido",
-        "falda", "blusa", "sueter", "abrigo", "tenis", "zapato", "sandalia",
-        "calcetin", "gorra", "ropa interior",
-
-        # Accesorios
-        "collar", "anillo", "reloj", "pulsera", "aretes", "lentes",
+        "ropa", "playera", "camisa", "pantalon", "jeans", "shorts",
+        "tenis", "zapatos", "sandalias", "vestido", "blusa",
+        "accesorio", "gorra", "reloj", "pulsera", "collar", "aretes",
 
         # Marcas
-        "nike", "adidas", "puma", "zara", "pull and bear", "bershka",
-        "h&m", "aeropostale", "liverpool", "gucci"
+        "nike", "adidas", "puma", "zara", "bershka", "h&m",
+        "aeropostale", "pull and bear", "shein", "gucci"
     ],
 
+    # ============================================================
+    # 🐶 MASCOTAS
+    # ============================================================
     "Mascotas": [
-        "perro", "gato", "mascota", "veterinario", "alimento", "croquetas",
-        "juguete", "correa", "camita", "baño para perro", "corte",
+        "perro", "gato", "mascota", "veterinario", "croquetas",
+        "alimento", "juguete", "correa", "baño", "corte",
+        "camita", "jaula", "arena para gato"
     ],
 
+    # ============================================================
+    # 💼 TRABAJO
+    # ============================================================
     "Trabajo": [
-        "oficina", "papeleria", "computadora", "laptop", "impresora", "teclado",
-        "mouse", "monitor", "software", "licencia", "suscripcion", "herramienta",
-
-        "material", "proyecto", "cliente", "servicio profesional"
+        "oficina", "papeleria", "computadora", "laptop", "monitor",
+        "impresora", "teclado", "mouse", "software", "licencia",
+        "suscripcion", "herramienta", "proyecto", "cliente"
     ],
 
-    "Finanzas": [
-        "impuesto", "iva", "isr", "multas", "recargo", "banco", "comision",
-        "retiro", "deposito", "transferencia", "ahorro", "prestamo", "credito",
-        "tarjeta", "intereses"
-    ],
-
+    # ============================================================
+    # 💰 INGRESOS
+    # ============================================================
     "Ingresos": [
-        "aguinaldo", "bono", "salario", "sueldo", "comision", "propina",
-        "prestacion", "ingreso extra", "venta", "pago recibido"
+        "aguinaldo", "bono", "salario", "sueldo", "quincena",
+        "deposito recibido", "comision", "propina", "venta",
+        "ganancia", "ingreso extra", "premio"
     ],
 
+    # ============================================================
+    # 💳 FINANZAS / TRÁMITES
+    # ============================================================
+    "Finanzas": [
+        "impuesto", "iva", "isr", "multas", "comision", "banco",
+        "prestamo", "credito", "tarjeta", "intereses", "seguro",
+        "transferencia", "retiro", "deposito"
+    ],
+
+    # ============================================================
+    # 📱 TECNOLOGÍA
+    # ============================================================
     "Tecnologia": [
-        "celular", "telefono", "iphone", "samsung", "xiaomi", "tablet",
-        "computadora", "laptop", "monitor", "audifonos", "bocina",
-        "cargador", "usb", "memoria", "tarjeta sd", "router"
+        "celular", "telefono", "iphone", "samsung", "xiaomi",
+        "tablet", "laptop", "computadora", "audifonos",
+        "bocina", "cargador", "usb", "memoria", "router"
     ],
 
+    # ============================================================
+    # 🧍 SERVICIOS PERSONALES
+    # ============================================================
     "Servicios personales": [
-        "corte de cabello", "peluqueria", "barberia", "maquillaje", "uñas",
-        "spa", "masaje", "depilacion", "cejas", "tinte"
+        "corte de cabello", "barbería", "peluqueria", "uñas",
+        "spa", "masaje", "depilacion", "cejas", "tinte",
+        "maquillaje", "peinado"
     ],
 
+    # ============================================================
+    # 🔄 OTROS
+    # ============================================================
     "Otros": [
-        "donacion", "regalo", "servicio", "compra", "gasto", "imprevisto",
-        "evento", "cita", "trámite"
+        "donacion", "regalo", "servicio", "pago", "gasto",
+        "imprevisto", "tramite", "cita", "compras"
     ]
 }
+
 
 
     # ===== CONTADOR DE PALABRAS =====
