@@ -163,7 +163,7 @@ def clasificador_local(mensaje: str):
 
         try:
             response = client.chat.completions.create(
-                model="llama3-70b-8192",
+                model="llama3-70b-8192-chat",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=10
             )
