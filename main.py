@@ -102,7 +102,7 @@ CATEGORIAS = [
 ]
 
 # ==============================
-# CLASIFICADOR SIN SUBCATEGORÍAS (OPENAI)
+# CLASIFICADOR CON OPENAI — MEJORADO
 # ==============================
 def clasificador_local(mensaje: str):
 
@@ -132,21 +132,34 @@ def clasificador_local(mensaje: str):
     ]
     tipo = "income" if any(p in msg_original for p in palabras_ingreso) else "expense"
 
-    # ===== 3. USAR OPENAI PARA CLASIFICAR =====
-    categoria = "Otros"  # fallback
+    # ===== 3. CLASIFICACIÓN OPENAI (POTENCIADA) =====
+    categoria = "Otros"  # fallback default
+
     if client:
         prompt = f"""
-        Clasifica el siguiente mensaje EXACTAMENTE en una sola categoría:
+        Eres un clasificador de gastos personales. Tu tarea es asignar el mensaje EXACTAMENTE
+        a una de estas categorías:
 
-        Categorías permitidas:
         {", ".join(CATEGORIAS)}
 
-        Mensaje:
+        🔍 **Reglas importantes:**
+
+        🐶 *Mascotas*
+        - Si el mensaje menciona perro, perrito, gato, gatito, mascota, croquetas, alimento de mascota,
+          veterinario, comida para mi perro/gato/mascota → la categoría debe ser **"Mascotas"**.
+
+        🍔 *Comida*
+        - Si es comida normal (no relacionada a mascotas), asigna **"Comida"**.
+
+        ❌ *No inventes categorías nuevas*
+        ❌ *No respondas texto adicional*
+        ✔ *Responde solo una de las categorías EXACTAS de la lista*
+        ✔ *Si no estás seguro, responde "Otros"*
+
+        Mensaje del usuario:
         "{mensaje}"
 
-        INSTRUCCIONES:
-        - No inventes categorías nuevas.
-        - Responde solamente el nombre exacto de la categoría.
+        Responde únicamente con la categoría.
         """
 
         try:
@@ -155,15 +168,15 @@ def clasificador_local(mensaje: str):
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=10
             )
-            categoria_respuesta = response.choices[0].message.content.strip()
+            respuesta = response.choices[0].message.content.strip()
 
-            if categoria_respuesta in CATEGORIAS:
-                categoria = categoria_respuesta
+            if respuesta in CATEGORIAS:
+                categoria = respuesta
             else:
                 categoria = "Otros"
 
         except Exception as e:
-            print("⚠ Error con OpenAI, usando categoría 'Otros':", e)
+            print("⚠ Error con OpenAI, regresando 'Otros':", e)
             categoria = "Otros"
 
     return tipo, categoria, monto, mensaje.capitalize()
