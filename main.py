@@ -18,10 +18,18 @@ load_dotenv()
 # ==============================
 try:
     from openai import OpenAI
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    OPENAI_KEY = os.getenv("OPENAI_API_KEY")
+
+    if not OPENAI_KEY or OPENAI_KEY.strip() == "":
+        print("❌ ERROR: OPENAI_API_KEY NO ESTÁ CARGADA EN EL .env")
+        client = None
+    else:
+        client = OpenAI(api_key=OPENAI_KEY)
+        print("✅ OpenAI cargado correctamente")
+
 except Exception as e:
+    print("❌ No se pudo cargar OpenAI:", e)
     client = None
-    print("⚠ No se pudo cargar OpenAI:", e)
 
 # ==============================
 # CONFIGURACIÓN DEL BACKEND
@@ -31,7 +39,7 @@ BACKEND_URL = os.getenv("BACKEND_URL")
 # ==============================
 # FASTAPI
 # ==============================
-app = FastAPI(title="IA Financiera - Ajustada para Android")
+app = FastAPI(title="IA Financiera - Clasificación Inteligente")
 
 class MensajeUsuario(BaseModel):
     mensaje: str
@@ -78,11 +86,12 @@ def validar_mensaje_con_openai(mensaje: str) -> bool:
     try:
         result = client.moderations.create(model="omni-moderation-latest", input=mensaje)
         return result.results[0].flagged
-    except:
+    except Exception as e:
+        print("⚠ Moderation error:", e)
         return False
 
 # ==============================
-# LISTA DE CATEGORÍAS (SIN SUBCATEGORÍAS)
+# CATEGORÍAS FIJAS
 # ==============================
 CATEGORIAS = [
     "Comida",
@@ -102,73 +111,59 @@ CATEGORIAS = [
 ]
 
 # ==============================
-# CLASIFICADOR CON OPENAI — MEJORADO
+# CLASIFICADOR (CORREGIDO + LOGS)
 # ==============================
 def clasificador_local(mensaje: str):
 
     msg_original = mensaje.strip().lower()
 
-    # ===== 1. DETECTAR MONTO =====
+    # ===== 1. MONTO =====
     match = re.search(r"\$?\s*([\d.,]+)", mensaje)
     if not match:
-        raise HTTPException(
-            status_code=400,
-            detail="No se pudo identificar un monto válido. Por favor, menciona claramente la cantidad."
-        )
+        raise HTTPException(400, "No se pudo identificar un monto válido")
 
     monto_str = match.group(1).replace(",", "").replace(".", "")
     monto = float(monto_str)
-
     if monto <= 0:
-        raise HTTPException(
-            status_code=400,
-            detail="Monto inválido. Por favor menciona una cantidad correcta."
-        )
+        raise HTTPException(400, "Monto inválido")
 
-    # ===== 2. DETECTAR TIPO (income/expense) =====
-    palabras_ingreso = [
-        "recibi","gane","me depositaron","ingreso","ingresaron","me transfirieron",
-        "cobre","me pagaron","obtuve","premio","venta","vendi"
-    ]
+    # ===== 2. TIPO =====
+    palabras_ingreso = ["recibi","gane","depositaron","ingreso","venta","vendi","pago","me pagaron"]
     tipo = "income" if any(p in msg_original for p in palabras_ingreso) else "expense"
 
-    # ===== 3. CLASIFICACIÓN OPENAI (POTENCIADA) =====
-    categoria = "Otros"  # fallback default
+    # ===== 3. CLASIFICACIÓN OPENAI =====
+    categoria = "Otros"
 
     if client:
+
         prompt = f"""
-        Eres un clasificador de gastos personales. Tu tarea es asignar el mensaje EXACTAMENTE
-        a una de estas categorías:
+        Clasifica este gasto EXACTAMENTE en una categoría:
 
         {", ".join(CATEGORIAS)}
 
-        🔍 **Reglas importantes:**
+        REGLAS:
+        - “tacos”, “dulces”, “hamburguesa”, “pizza”, etc. → Comida
+        - “gasolina”, “camion”, “uber”, etc. → Transporte
+        - “cine”, “netflix”, “concierto” → Entretenimiento
+        - “doctor”, “dentista”, “farmacia” → Salud
+        - “comida de mi perro”, “croquetas”, “alimento para gato”, “veterinario” → Mascotas
+        - No inventes categorías nuevas.
+        - Si no estás seguro, responde “Otros”.
 
-        🐶 *Mascotas*
-        - Si el mensaje menciona perro, perrito, gato, gatito, mascota, croquetas, alimento de mascota,
-          veterinario, comida para mi perro/gato/mascota → la categoría debe ser **"Mascotas"**.
+        Mensaje: "{mensaje}"
 
-        🍔 *Comida*
-        - Si es comida normal (no relacionada a mascotas), asigna **"Comida"**.
-
-        ❌ *No inventes categorías nuevas*
-        ❌ *No respondas texto adicional*
-        ✔ *Responde solo una de las categorías EXACTAS de la lista*
-        ✔ *Si no estás seguro, responde "Otros"*
-
-        Mensaje del usuario:
-        "{mensaje}"
-
-        Responde únicamente con la categoría.
+        Responde solo con la categoría, sin texto adicional.
         """
 
         try:
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4o-mini",  # si falla usa gpt-4o
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=10
+                max_tokens=10,
             )
+
             respuesta = response.choices[0].message.content.strip()
+            print("🟦 RESPUESTA DE OPENAI:", respuesta)
 
             if respuesta in CATEGORIAS:
                 categoria = respuesta
@@ -176,8 +171,12 @@ def clasificador_local(mensaje: str):
                 categoria = "Otros"
 
         except Exception as e:
-            print("⚠ Error con OpenAI, regresando 'Otros':", e)
+            print("❌ ERROR LLAMANDO A OPENAI:", e)
             categoria = "Otros"
+
+    else:
+        print("⚠ No hay cliente OpenAI — clasificando como Otros")
+        categoria = "Otros"
 
     return tipo, categoria, monto, mensaje.capitalize()
 
@@ -201,8 +200,8 @@ def clasificar_gasto(mensaje: str, token: str):
     headers = {"Authorization": token, "Content-Type": "application/json"}
     try:
         requests.post(BACKEND_URL, json=data, headers=headers, timeout=10)
-    except:
-        pass
+    except Exception as e:
+        print("⚠ Error enviando al backend:", e)
 
     return data
 
@@ -213,16 +212,16 @@ def clasificar_gasto(mensaje: str, token: str):
 async def clasificar_endpoint(payload: MensajeUsuario, authorization: str = Header(...)):
 
     if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Token inválido o ausente")
+        raise HTTPException(401, "Token inválido o ausente")
 
     if contiene_lenguaje_ofensivo(payload.mensaje):
-        raise HTTPException(status_code=400, detail="El mensaje contiene lenguaje ofensivo o no permitido.")
+        raise HTTPException(400, "El mensaje contiene lenguaje ofensivo o no permitido.")
 
     if validar_mensaje_con_openai(payload.mensaje):
-        raise HTTPException(status_code=400, detail="El mensaje contiene contenido inapropiado (Moderation).")
+        raise HTTPException(400, "El mensaje contiene contenido inapropiado (Moderation).")
 
     return clasificar_gasto(payload.mensaje, authorization)
 
 @app.get("/")
 async def root():
-    return {"status": "ok", "message": "IA lista y sincronizada con Android 🚀"}
+    return {"status": "ok", "message": "IA financiera funcionando 🚀"}
