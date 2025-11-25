@@ -72,19 +72,24 @@ def contiene_groserias_IA(texto: str) -> bool:
         return False
 
     prompt = f"""
-    Analiza el siguiente mensaje y responde en JSON:
-    {{
-        "ofensivo": true/false
-    }}
+    Analiza el siguiente mensaje y determina si contiene lenguaje ofensivo,
+    incluso si está CENSURADO o escrito con símbolos, números o asteriscos.
 
-    Considera ofensivo:
+    Cuenta como ofensivo si incluye:
+    - groserías normales ("pendejo", "puta", "verga", "chingar")
+    - groserías censuradas ("p***", "m****", "pnch3", "v3rg@", "pndjo")
+    - groserías con símbolos ("p#to", "hij@ de p##", "mi3rd@")
+    - groserías con letras omitidas ("ptm", "vrg", "chng")
+    - lenguaje sexual explícito
     - insultos
-    - groserías
-    - vulgaridades
     - amenazas
-    - contenido sexual
     - acoso
-    - odio
+    - odio o violencia
+
+    Debes responder ÚNICAMENTE en JSON válido:
+    {{
+        "ofensivo": true or false
+    }}
 
     Mensaje: "{texto}"
     """
@@ -97,12 +102,17 @@ def contiene_groserias_IA(texto: str) -> bool:
             max_tokens=20
         )
 
-        data = json.loads(res.choices[0].message.content.strip())
-        print("🟥 Filtro ofensivo IA:", data)
+        # contenido del asistente
+        content = res.choices[0].message.content.strip()
+
+        print("🟥 Filtro ofensivo IA RAW:", content)
+
+        data = json.loads(content)
 
         return data.get("ofensivo", False)
 
-    except:
+    except Exception as e:
+        print("❌ ERROR filtro IA:", e)
         return False
 
 
