@@ -68,30 +68,23 @@ def eliminar_acentos(texto: str) -> str:
 # 🔥 DETECCIÓN DE GROCERÍAS / CONTENIDO OFENSIVO (IA)
 # =====================================================
 def contiene_groserias_IA(texto: str) -> bool:
-    """
-    Usa Groq para detectar lenguaje ofensivo, vulgaridades,
-    contenido sexual, amenazas, etc.
-    Responde SOLO con JSON:
-    { "ofensivo": true/false }
-    """
     if not client:
         return False
 
     prompt = f"""
-    Analiza el siguiente mensaje y responde únicamente en JSON válido:
+    Analiza el siguiente mensaje y responde en JSON:
     {{
         "ofensivo": true/false
     }}
 
     Considera ofensivo:
-    - groserías
     - insultos
+    - groserías
     - vulgaridades
-    - lenguaje explícito sexual
     - amenazas
+    - contenido sexual
     - acoso
     - odio
-    - violencia
 
     Mensaje: "{texto}"
     """
@@ -101,56 +94,44 @@ def contiene_groserias_IA(texto: str) -> bool:
             model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
-            max_tokens=10
+            max_tokens=20
         )
 
-        contenido = res.choices[0].message.content.strip()
-        print("🟥 Filtro ofensivo IA (JSON):", contenido)
-
-        data = json.loads(contenido)
+        data = json.loads(res.choices[0].message.content.strip())
+        print("🟥 Filtro ofensivo IA:", data)
 
         return data.get("ofensivo", False)
 
-    except Exception as e:
-        print("❌ ERROR filtro IA:", e)
+    except:
         return False
 
 
 
 # =====================================================
-# 🔥 CLASIFICACIÓN DE CATEGORÍA CON IA (JSON)
+# 🔥 DETECCIÓN INTELIGENTE DE INGRESOS/GASTOS (IA)
 # =====================================================
-CATEGORIAS = [
-    "Comida", "Transporte", "Entretenimiento", "Salud", "Educacion",
-    "Hogar", "Ropa", "Mascotas", "Trabajo", "Ingresos", "Finanzas",
-    "Tecnologia", "Servicios personales", "Otros"
-]
-
-def clasificar_categoria_IA(mensaje: str) -> str:
+def clasificar_tipo_IA(mensaje: str) -> str:
     """
-    Usa Groq para elegir la mejor categoría.
-    Siempre responde JSON:
-    { "categoria": "string" }
+    Devuelve: "income" o "expense" usando IA
     """
     if not client:
-        return "Otros"
+        return "expense"
 
     prompt = f"""
-    Determina la CATEGORÍA del siguiente gasto.
-
-    Categorías válidas:
-    {", ".join(CATEGORIAS)}
-
-    Regla:
-    - Si el mensaje describe "croquetas", "alimento de perro", "veterinario", → Mascotas
-    - Si describe comida general → Comida
-    - Si describe gasolina, uber, taxi → Transporte
-    - Si no encaja con ninguna → "Otros"
-
-    FORMATO OBLIGATORIO:
+    Determina si esta transacción es ingreso o gasto.
+    Responde SOLO en JSON:
     {{
-        "categoria": "string"
+        "type": "income" | "expense"
     }}
+
+    Si la persona dice:
+    - me encontré
+    - me llegó
+    - me depositaron
+    - gané
+    - recibí
+    - salario/sueldo
+    → eso es ingreso.
 
     Mensaje: "{mensaje}"
     """
@@ -164,42 +145,94 @@ def clasificar_categoria_IA(mensaje: str) -> str:
         )
 
         data = json.loads(res.choices[0].message.content.strip())
+        tipo = data.get("type", "expense")
 
-        categoria = data.get("categoria", "Otros")
+        print("🟩 TIPO IA:", tipo)
 
+        return tipo
+
+    except:
+        return "expense"
+
+
+
+# =====================================================
+# 🔥 CLASIFICACIÓN DE CATEGORÍA (SIN OTROS)
+# =====================================================
+CATEGORIAS = [
+    "Comida", "Transporte", "Entretenimiento", "Salud", "Educacion",
+    "Hogar", "Ropa", "Mascotas", "Trabajo", "Ingresos", "Finanzas",
+    "Tecnologia", "Servicios personales"
+]
+
+
+def clasificar_categoria_IA(mensaje: str) -> str:
+    """
+    Selecciona una categoría o crea una nueva si la IA genera una.
+    Ya NO usamos "Otros".
+    """
+    if not client:
+        return "Sin categoría"
+
+    prompt = f"""
+    Determina la mejor categoría para este gasto o ingreso.
+
+    Categorías actuales:
+    {", ".join(CATEGORIAS)}
+
+    Si la categoría no existe o no coincide, CREA UNA NUEVA categoría 
+    (una palabra clara, legible y relacionada).
+
+    Responde SOLO en JSON válido:
+    {{
+        "categoria": "string"
+    }}
+
+    Mensaje: "{mensaje}"
+    """
+
+    try:
+        res = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_tokens=20
+        )
+
+        data = json.loads(res.choices[0].message.content.strip())
+        categoria = data.get("categoria", "Sin categoria")
+
+        print("🟦 Categoría IA:", categoria)
+
+        # Si la categoría NO existe → CREARLA
         if categoria not in CATEGORIAS:
-            return "Otros"
+            CATEGORIAS.append(categoria)
+            print("🆕 Nueva categoría creada:", categoria)
 
         return categoria
 
     except Exception as e:
         print("❌ Error categorización IA:", e)
-        return "Otros"
+        return "Sin categoria"
 
 
 
 # =====================================================
-# 🔥 CLASIFICADOR PRINCIPAL
+# 🔥 CLASIFICADOR COMPLETO
 # =====================================================
 def clasificador_local(mensaje: str):
-
-    msg_original = mensaje.strip().lower()
 
     # === MONTO ===
     match = re.search(r"\$?\s*([\d.,]+)", mensaje)
     if not match:
-        raise HTTPException(400, "No se pudo identificar un monto válido")
+        raise HTTPException(400, "No se encontró monto")
 
     monto = float(match.group(1).replace(",", "").replace(".", ""))
     if monto <= 0:
         raise HTTPException(400, "Monto inválido")
 
-    # === TIPO ===
-    palabras_ingreso = [
-        "recibi", "gane", "depositaron", "ingreso",
-        "venta", "vendi", "pago", "me pagaron"
-    ]
-    tipo = "income" if any(p in msg_original for p in palabras_ingreso) else "expense"
+    # === TIPO CON IA ===
+    tipo = clasificar_tipo_IA(mensaje)
 
     # === CATEGORÍA IA ===
     categoria = clasificar_categoria_IA(mensaje)
@@ -224,9 +257,8 @@ def clasificar_gasto(mensaje: str, token: str):
         "date": ahora.strftime("%Y-%m-%dT%H:%M:%S")
     }
 
-    print("📤 ENVIANDO AL BACKEND:", data)
+    print("📤 ENVIANDO:", data)
 
-    # envío al backend real
     try:
         headers = {"Authorization": token, "Content-Type": "application/json"}
         requests.post(BACKEND_URL, json=data, headers=headers, timeout=10)
@@ -243,16 +275,11 @@ def clasificar_gasto(mensaje: str, token: str):
 @app.post("/clasificar_gasto", response_model=ClasificacionRespuesta)
 async def clasificar_endpoint(payload: MensajeUsuario, authorization: str = Header(...)):
 
-    # Validar token
     if not authorization.startswith("Bearer "):
-        raise HTTPException(401, "Token inválido o ausente")
+        raise HTTPException(401, "Token inválido")
 
-    # Validar groserías con IA
     if contiene_groserias_IA(payload.mensaje):
-        raise HTTPException(
-            400,
-            "El mensaje contiene lenguaje ofensivo, groserías o contenido inapropiado."
-        )
+        raise HTTPException(400, "El mensaje contiene lenguaje ofensivo")
 
     return clasificar_gasto(payload.mensaje, authorization)
 
