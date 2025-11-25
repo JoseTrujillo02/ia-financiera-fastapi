@@ -73,20 +73,31 @@ def contiene_groserias_IA(texto: str) -> bool:
 
     prompt = f"""
     Analiza el siguiente mensaje y determina si contiene lenguaje ofensivo,
-    incluso si está CENSURADO o escrito con símbolos, números o asteriscos.
+    insultos, vulgaridades, groserías, modismos ofensivos o expresiones
+    inapropiadas EN CUALQUIERA DE ESTAS FORMAS:
 
-    Cuenta como ofensivo si incluye:
-    - groserías normales ("pendejo", "puta", "verga", "chingar")
-    - groserías censuradas ("p***", "m****", "pnch3", "v3rg@", "pndjo")
-    - groserías con símbolos ("p#to", "hij@ de p##", "mi3rd@")
-    - groserías con letras omitidas ("ptm", "vrg", "chng")
-    - lenguaje sexual explícito
-    - insultos
-    - amenazas
-    - acoso
-    - odio o violencia
+    🔥 Considera ofensivo si está:
+    - escrito normal: "pendejo", "puta", "culero"
+    - abreviado: "ptm", "vrg", "mdr"
+    - censurado: "p***", "m****", "ching*d*"
+    - con símbolos: "p#to", "mi3rd@", "v3rg@"
+    - con números: "p3ndejo", "put0"
+    - disfrazado: "pndjo", "vrg", "chng", "cbrn"
+    - modismos ofensivos: "vale madre", "vale madres", "me vale madre",
+      "valió madre", "me vale verga", "vale pito"
 
-    Debes responder ÚNICAMENTE en JSON válido:
+    EJEMPLOS DE EXPRESIONES OFENSIVAS:
+    - "vale madre"
+    - "vale madres"
+    - "me vale madre"
+    - "me vale madres"
+    - "valió madre"
+    - "valió madres"
+    - "vale mdr"
+    - "valio mdr"
+
+    INSTRUCCIÓN:
+    Responde ÚNICAMENTE en JSON ESTRICTO:
     {{
         "ofensivo": true or false
     }}
@@ -102,20 +113,15 @@ def contiene_groserias_IA(texto: str) -> bool:
             max_tokens=20
         )
 
-        # contenido del asistente
-        content = res.choices[0].message.content.strip()
+        raw = res.choices[0].message.content.strip()
+        print("🟥 Filtro ofensivo IA RAW:", raw)
 
-        print("🟥 Filtro ofensivo IA RAW:", content)
-
-        data = json.loads(content)
-
+        data = json.loads(raw)
         return data.get("ofensivo", False)
 
     except Exception as e:
         print("❌ ERROR filtro IA:", e)
         return False
-
-
 
 # =====================================================
 # 🔥 DETECCIÓN INTELIGENTE DE INGRESOS/GASTOS (IA)
