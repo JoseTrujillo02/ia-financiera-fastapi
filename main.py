@@ -163,7 +163,7 @@ def clasificador_local(mensaje: str):
 
         try:
             response = client.chat.completions.create(
-                model="llama3-70b-8192-chat",
+                model="llama-3.1-8b-instant",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=10
             )
@@ -199,7 +199,7 @@ def clasificar_gasto(mensaje: str, token: str):
         "date": ahora.strftime("%Y-%m-%dT%H:%M:%S")
     }
 
-    # Enviar al backend
+    # Enviar al backend real
     headers = {"Authorization": token, "Content-Type": "application/json"}
     try:
         requests.post(BACKEND_URL, json=data, headers=headers, timeout=10)
