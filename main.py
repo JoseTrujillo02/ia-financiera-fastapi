@@ -20,16 +20,17 @@ try:
     from openai import OpenAI
     OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 
-    if not OPENAI_KEY or OPENAI_KEY.strip() == "":
-        print("❌ ERROR: OPENAI_API_KEY NO ESTÁ CARGADA EN EL .env")
-        client = None
-    else:
+    if OPENAI_KEY:
         client = OpenAI(api_key=OPENAI_KEY)
-        print("✅ OpenAI cargado correctamente")
+        print("✅ OpenAI cargado correctamente desde variable de entorno")
+    else:
+        print("❌ ERROR: OPENAI_API_KEY no existe como variable de entorno.")
+        client = None
 
 except Exception as e:
-    print("❌ No se pudo cargar OpenAI:", e)
+    print("❌ No se pudo inicializar OpenAI:", e)
     client = None
+
 
 # ==============================
 # CONFIGURACIÓN DEL BACKEND
