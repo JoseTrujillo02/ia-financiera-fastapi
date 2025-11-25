@@ -2,7 +2,6 @@ from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 from datetime import datetime
 import requests
-import json
 import os
 import re
 import unicodedata
@@ -14,7 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ==============================
-# CONFIGURACIÓN DE GROQ (GRATIS)
+# CONFIGURACIÓN DE GROQ
 # ==============================
 try:
     from groq import Groq
@@ -37,9 +36,6 @@ except Exception as e:
 # ==============================
 BACKEND_URL = os.getenv("BACKEND_URL")
 
-# ==============================
-# FASTAPI
-# ==============================
 app = FastAPI(title="IA Financiera - Groq Edition")
 
 class MensajeUsuario(BaseModel):
@@ -52,6 +48,7 @@ class ClasificacionRespuesta(BaseModel):
     descripcion: str
     date: str
 
+
 # ==============================
 # UTILIDADES
 # ==============================
@@ -61,69 +58,74 @@ def eliminar_acentos(texto: str) -> str:
         if unicodedata.category(c) != "Mn"
     )
 
-def normalizar_texto(texto: str) -> str:
-    texto = eliminar_acentos(texto.lower())
-    reemplazos = {"@": "a", "$": "s", "3": "e", "1": "i", "4": "a", "*": ""}
-    for simb, letra in reemplazos.items():
-        texto = texto.replace(simb, letra)
-    return re.sub(r'[^a-zñ]+', '', texto)
 
 # ==============================
-# FILTRO LENGUAJE OFENSIVO
+# DETECCIÓN DE GROCERÍAS CON IA
 # ==============================
-PATRONES = [
-    "pendej","idiot","imbecil","estupid","put","ching","verga","mamad","cabron","culer",
-    "mierd","sexo","porn","follar","coger","chupar","vagin","pene","nalg","teta","boob",
-    "maric","joto","zorr","asesin","suicid","degoll","ptm","vrg"
-]
+def contiene_groserias_IA(texto: str) -> bool:
+    if not client:
+        return False  # si no hay IA, no bloquee
 
-def contiene_lenguaje_ofensivo(texto: str) -> bool:
-    t = normalizar_texto(texto)
-    return any(p in t for p in PATRONES) or re.search(r"[a-z]{1,3}\*{2,}[a-z]*", texto.lower())
+    prompt = f"""
+    Analiza el siguiente mensaje y responde SOLO "SI" o "NO".
+
+    La pregunta es:
+    ¿El mensaje contiene lenguaje ofensivo, groserías, vulgaridades, insultos,
+    contenido sexual explícito, amenazas, odio, acoso o expresiones inapropiadas?
+
+    Mensaje:
+    "{texto}"
+
+    Responde SOLO "SI" o SOLO "NO".
+    """
+
+    try:
+        res = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=2
+        )
+
+        respuesta = res.choices[0].message.content.strip().lower()
+        print("🟥 Filtro ofensivo IA:", respuesta)
+
+        return respuesta == "si"
+
+    except Exception as e:
+        print("❌ ERROR filtro IA:", e)
+        return False
 
 
 # ==============================
-# CATEGORÍAS FIJAS
+# CATEGORÍAS
 # ==============================
 CATEGORIAS = [
-    "Comida",
-    "Transporte",
-    "Entretenimiento",
-    "Salud",
-    "Educacion",
-    "Hogar",
-    "Ropa",
-    "Mascotas",
-    "Trabajo",
-    "Ingresos",
-    "Finanzas",
-    "Tecnologia",
-    "Servicios personales",
-    "Otros"
+    "Comida", "Transporte", "Entretenimiento", "Salud", "Educacion",
+    "Hogar", "Ropa", "Mascotas", "Trabajo", "Ingresos", "Finanzas",
+    "Tecnologia", "Servicios personales", "Otros"
 ]
 
+
 # ==============================
-# CLASIFICADOR CON GROQ
+# CLASIFICADOR
 # ==============================
 def clasificador_local(mensaje: str):
 
     msg_original = mensaje.strip().lower()
 
-    # ===== 1. MONTO =====
+    # === MONTO ===
     match = re.search(r"\$?\s*([\d.,]+)", mensaje)
     if not match:
         raise HTTPException(400, "No se pudo identificar un monto válido")
 
-    monto_str = match.group(1).replace(",", "").replace(".", "")
-    monto = float(monto_str)
+    monto = float(match.group(1).replace(",", "").replace(".", ""))
     if monto <= 0:
         raise HTTPException(400, "Monto inválido")
 
-    # ===== 2. TIPO =====
-    palabras_ingreso = ["recibi","gane","depositaron","ingreso","venta","vendi","pago","me pagaron"]
+    # === TIPO ===
+    palabras_ingreso = ["recibi", "gane", "depositaron", "ingreso", "venta", "vendi", "pago", "me pagaron"]
     tipo = "income" if any(p in msg_original for p in palabras_ingreso) else "expense"
 
-    # ===== 3. CLASIFICACIÓN GROQ =====
     categoria = "Otros"
 
     if client:
@@ -132,33 +134,12 @@ def clasificador_local(mensaje: str):
 
         {", ".join(CATEGORIAS)}
 
-        REGLAS IMPORTANTES:
-
-        Mascotas →
-        - comida de mi perro
-        - croquetas
-        - comida de mi gato
-        - alimento para mascota
-        - veterinario
-
-        Comida →
-        - tacos
-        - dulces
-        - pizza
-        - hamburguesa
-
-        Transporte →
-        - gasolina
-        - uber
-        - camión
-        - taxi
-
-        NO inventes categorías nuevas.
-        Si no estás seguro, responde "Otros".
+        NO inventes categorías.
+        Si no coincide con ninguna, responde "Otros".
 
         Mensaje: "{mensaje}"
 
-        Responde solo con la categoría.
+        Responde solo una categoría.
         """
 
         try:
@@ -173,8 +154,6 @@ def clasificador_local(mensaje: str):
 
             if respuesta in CATEGORIAS:
                 categoria = respuesta
-            else:
-                categoria = "Otros"
 
         except Exception as e:
             print("❌ ERROR GROQ:", e)
@@ -199,14 +178,16 @@ def clasificar_gasto(mensaje: str, token: str):
         "date": ahora.strftime("%Y-%m-%dT%H:%M:%S")
     }
 
-    # Enviar al backend real
-    headers = {"Authorization": token, "Content-Type": "application/json"}
+    print("📤 ENVIANDO AL BACKEND:", data)
+
     try:
+        headers = {"Authorization": token, "Content-Type": "application/json"}
         requests.post(BACKEND_URL, json=data, headers=headers, timeout=10)
     except Exception as e:
         print("⚠ Error enviando al backend:", e)
 
     return data
+
 
 # ==============================
 # ENDPOINT
@@ -217,10 +198,15 @@ async def clasificar_endpoint(payload: MensajeUsuario, authorization: str = Head
     if not authorization.startswith("Bearer "):
         raise HTTPException(401, "Token inválido o ausente")
 
-    if contiene_lenguaje_ofensivo(payload.mensaje):
-        raise HTTPException(400, "El mensaje contiene lenguaje ofensivo.")
+    # 🔥 FILTRO DE GROCERÍAS CON IA
+    if contiene_groserias_IA(payload.mensaje):
+        raise HTTPException(
+            400,
+            "El mensaje contiene lenguaje ofensivo, groserías o contenido inapropiado."
+        )
 
     return clasificar_gasto(payload.mensaje, authorization)
+
 
 @app.get("/")
 async def root():
