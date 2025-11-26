@@ -46,13 +46,13 @@ app = FastAPI(title="IA Financiera - Groq Edition")
 class MensajeUsuario(BaseModel):
     mensaje: str
 
-
 class ClasificacionRespuesta(BaseModel):
     type: str
     amount: float
     category: str
     descripcion: str
     date: str
+    advertencia: str | None = None
 
 
 # ==============================
@@ -73,10 +73,10 @@ def contiene_groserias_IA(texto: str) -> bool:
         return False
 
     prompt = f"""
-    Analiza si el mensaje contiene groserías, vulgaridades, insultos,
-    lenguaje ofensivo o expresiones inapropiadas.
+    Determina si este mensaje contiene groserías, vulgaridades, insultos,
+    lenguaje ofensivo, contenido sexual explícito o palabras inapropiadas.
 
-    Responde SOLO en JSON:
+    Responde SOLO con JSON estricto:
     {{
         "ofensivo": true or false
     }}
@@ -98,23 +98,22 @@ def contiene_groserias_IA(texto: str) -> bool:
         data = json.loads(raw)
         return data.get("ofensivo", False)
 
-    except Exception as e:
-        print("❌ ERROR filtro IA:", e)
+    except:
         return False
 
 
 # =====================================================
-# 🔥 DETECCIÓN DOBLE SENTIDO (IA)
+# 🔥 DETECCIÓN DOBLE SENTIDO (SOLO ADVERTENCIA)
 # =====================================================
 def contiene_doble_sentido_IA(texto: str) -> bool:
     if not client:
         return False
 
     prompt = f"""
-    Analiza si el mensaje contiene doble sentido, insinuaciones sexuales
-    indirectas o albures mexicanos.
+    Determina si el mensaje contiene doble sentido, frases con
+    insinuación sexual indirecta, albures mexicanos o lenguaje ambiguo.
 
-    Responde SOLO en JSON:
+    Responde SOLO JSON:
     {{
         "doble_sentido": true or false
     }}
@@ -131,13 +130,12 @@ def contiene_doble_sentido_IA(texto: str) -> bool:
         )
 
         raw = res.choices[0].message.content.strip()
-        print("🟨 Filtro doble sentido IA RAW:", raw)
+        print("🟨 Doble sentido IA RAW:", raw)
 
         data = json.loads(raw)
         return data.get("doble_sentido", False)
 
-    except Exception as e:
-        print("❌ ERROR doble sentido IA:", e)
+    except:
         return False
 
 
@@ -170,7 +168,7 @@ def clasificar_tipo_IA(mensaje: str) -> str:
         data = json.loads(res.choices[0].message.content.strip())
         tipo = data.get("type", "expense")
 
-        print("🟩 TIPO IA:", tipo)
+        print("🟩 Tipo IA:", tipo)
 
         return tipo
 
@@ -179,26 +177,27 @@ def clasificar_tipo_IA(mensaje: str) -> str:
 
 
 # =====================================================
-# 🔥 CLASIFICACIÓN DE CATEGORÍAS
+# 🔥 CREACIÓN DE CATEGORÍAS (LIBRE)
 # =====================================================
-CATEGORIAS = [
-    "Comida", "Transporte", "Entretenimiento", "Salud", "Educacion",
-    "Hogar", "Ropa", "Mascotas", "Trabajo", "Ingresos", "Finanzas",
-    "Tecnologia", "Servicios personales"
-]
-
-
 def clasificar_categoria_IA(mensaje: str) -> str:
+    """
+    La IA crea UNA categoría nueva basada solo en el mensaje.
+    Sin listas, sin ejemplos, sin categorías existentes.
+    """
+
     if not client:
-        return "Sin categoría"
+        return "SinCategoria"
 
     prompt = f"""
-    Determina la mejor categoría.  
-    Si no existe, CREA UNA NUEVA.
+    Crea una categoría de UNA sola palabra que describa el gasto o ingreso.
+    No uses listas existentes.
+    No inventes frases largas.
+    No uses "Otros".
+    La categoría debe ser concreta y relacionada al mensaje.
 
-    Responde JSON:
+    Responde SOLO JSON:
     {{
-        "categoria": "string"
+        "categoria": "UnaPalabra"
     }}
 
     Mensaje: "{mensaje}"
@@ -208,23 +207,21 @@ def clasificar_categoria_IA(mensaje: str) -> str:
         res = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
-            max_tokens=20
+            temperature=0.2,
+            max_tokens=25
         )
 
         data = json.loads(res.choices[0].message.content.strip())
-        categoria = data.get("categoria", "Sin categoria")
+        categoria = data.get("categoria", "SinCategoria")
+
+        categoria = categoria.replace(" ", "")
 
         print("🟦 Categoría IA:", categoria)
-
-        if categoria not in CATEGORIAS:
-            CATEGORIAS.append(categoria)
-            print("🆕 Nueva categoría creada:", categoria)
 
         return categoria
 
     except:
-        return "Sin categoria"
+        return "SinCategoria"
 
 
 # =====================================================
@@ -232,13 +229,11 @@ def clasificar_categoria_IA(mensaje: str) -> str:
 # =====================================================
 def clasificador_local(mensaje: str):
 
-    # === MONTO ===
     match = re.search(r"\$?\s*([\d.,]+)", mensaje)
     if not match:
         raise HTTPException(400, "No se encontró monto")
 
     monto = float(match.group(1).replace(",", "").replace(".", ""))
-
     if monto <= 0:
         raise HTTPException(400, "Monto inválido")
 
@@ -249,9 +244,9 @@ def clasificador_local(mensaje: str):
 
 
 # =====================================================
-# 🔥 FUNCIÓN PRINCIPAL (FALTABA AQUÍ)
+# 🔥 FUNCIÓN PRINCIPAL
 # =====================================================
-def clasificar_gasto(mensaje: str, token: str):
+def clasificar_gasto(mensaje: str, token: str, advertencia=None):
 
     ahora = datetime.now()
     tipo, categoria, monto, descripcion = clasificador_local(mensaje)
@@ -261,7 +256,8 @@ def clasificar_gasto(mensaje: str, token: str):
         "amount": monto,
         "category": categoria,
         "descripcion": descripcion,
-        "date": ahora.strftime("%Y-%m-%dT%H:%M:%S")
+        "date": ahora.strftime("%Y-%m-%dT%H:%M:%S"),
+        "advertencia": advertencia
     }
 
     print("📤 ENVIANDO:", data)
@@ -284,13 +280,16 @@ async def clasificar_endpoint(payload: MensajeUsuario, authorization: str = Head
     if not authorization.startswith("Bearer "):
         raise HTTPException(401, "Token inválido")
 
+    # ❶ SI HAY GROCERÍAS → BLOQUEA
     if contiene_groserias_IA(payload.mensaje):
         raise HTTPException(400, "El mensaje contiene lenguaje ofensivo")
 
+    # ❷ SI HAY DOBLE SENTIDO → ADVIERTE PERO **SÍ GUARDA**
+    advertencia = None
     if contiene_doble_sentido_IA(payload.mensaje):
-        raise HTTPException(400, "El mensaje contiene doble sentido")
+        advertencia = "El mensaje contiene doble sentido. Por favor, exprésate con claridad."
 
-    return clasificar_gasto(payload.mensaje, authorization)
+    return clasificar_gasto(payload.mensaje, authorization, advertencia)
 
 
 @app.get("/")
