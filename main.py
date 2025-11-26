@@ -46,6 +46,7 @@ app = FastAPI(title="IA Financiera - Groq Edition")
 class MensajeUsuario(BaseModel):
     mensaje: str
 
+
 class ClasificacionRespuesta(BaseModel):
     type: str
     amount: float
@@ -72,11 +73,10 @@ def contiene_groserias_IA(texto: str) -> bool:
         return False
 
     prompt = f"""
-    Analiza el siguiente mensaje y determina si contiene lenguaje ofensivo,
-    insultos, vulgaridades, groserías, modismos ofensivos o expresiones
-    inapropiadas.
+    Analiza si el mensaje contiene groserías, vulgaridades, insultos,
+    lenguaje ofensivo o expresiones inapropiadas.
 
-    Responde ÚNICAMENTE con JSON estricto:
+    Responde SOLO en JSON:
     {{
         "ofensivo": true or false
     }}
@@ -104,29 +104,17 @@ def contiene_groserias_IA(texto: str) -> bool:
 
 
 # =====================================================
-# 🔥 DETECCIÓN DE DOBLE SENTIDO MEXICANO (NUEVO)
+# 🔥 DETECCIÓN DOBLE SENTIDO (IA)
 # =====================================================
 def contiene_doble_sentido_IA(texto: str) -> bool:
     if not client:
         return False
 
     prompt = f"""
-    Analiza el siguiente mensaje y determina si contiene expresiones
-    de doble sentido, insinuaciones sexuales, albures mexicanos o frases
-    con sentido ambiguo que NO deben usarse en una app financiera.
+    Analiza si el mensaje contiene doble sentido, insinuaciones sexuales
+    indirectas o albures mexicanos.
 
-    EJEMPLOS DE DOBLE SENTIDO:
-    - "me la dejaron ir"
-    - "me atoraron"
-    - "me la metieron"
-    - "me enchufaron"
-    - "me la aplicaron"
-    - "me chingaron con el precio"
-    - "se mamaron con el costo"
-    - "me la clavaron"
-
-    INSTRUCCIÓN:
-    Responde SOLO JSON estricto:
+    Responde SOLO en JSON:
     {{
         "doble_sentido": true or false
     }}
@@ -153,9 +141,8 @@ def contiene_doble_sentido_IA(texto: str) -> bool:
         return False
 
 
-
 # =====================================================
-# 🔥 DETECCIÓN INTELIGENTE DE INGRESOS/GASTOS (IA)
+# 🔥 DETECCIÓN INGRESO/GASTO
 # =====================================================
 def clasificar_tipo_IA(mensaje: str) -> str:
     if not client:
@@ -191,9 +178,8 @@ def clasificar_tipo_IA(mensaje: str) -> str:
         return "expense"
 
 
-
 # =====================================================
-# 🔥 CLASIFICACIÓN DE CATEGORÍA (SIN OTROS)
+# 🔥 CLASIFICACIÓN DE CATEGORÍAS
 # =====================================================
 CATEGORIAS = [
     "Comida", "Transporte", "Entretenimiento", "Salud", "Educacion",
@@ -207,14 +193,10 @@ def clasificar_categoria_IA(mensaje: str) -> str:
         return "Sin categoría"
 
     prompt = f"""
-    Determina la mejor categoría para este gasto o ingreso.
+    Determina la mejor categoría.  
+    Si no existe, CREA UNA NUEVA.
 
-    Categorías actuales:
-    {", ".join(CATEGORIAS)}
-
-    Si ninguna coincide, CREA UNA NUEVA.
-
-    Responde SOLO JSON:
+    Responde JSON:
     {{
         "categoria": "string"
     }}
@@ -226,7 +208,7 @@ def clasificar_categoria_IA(mensaje: str) -> str:
         res = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
+            temperature=0.1,
             max_tokens=20
         )
 
@@ -241,17 +223,16 @@ def clasificar_categoria_IA(mensaje: str) -> str:
 
         return categoria
 
-    except Exception as e:
-        print("❌ Error categoría IA:", e)
+    except:
         return "Sin categoria"
 
 
-
 # =====================================================
-# 🔥 CLASIFICADOR PRINCIPAL
+# 🔥 CLASIFICADOR LOCAL
 # =====================================================
 def clasificador_local(mensaje: str):
 
+    # === MONTO ===
     match = re.search(r"\$?\s*([\d.,]+)", mensaje)
     if not match:
         raise HTTPException(400, "No se encontró monto")
@@ -267,9 +248,35 @@ def clasificador_local(mensaje: str):
     return tipo, categoria, monto, mensaje.capitalize()
 
 
+# =====================================================
+# 🔥 FUNCIÓN PRINCIPAL (FALTABA AQUÍ)
+# =====================================================
+def clasificar_gasto(mensaje: str, token: str):
+
+    ahora = datetime.now()
+    tipo, categoria, monto, descripcion = clasificador_local(mensaje)
+
+    data = {
+        "type": tipo,
+        "amount": monto,
+        "category": categoria,
+        "descripcion": descripcion,
+        "date": ahora.strftime("%Y-%m-%dT%H:%M:%S")
+    }
+
+    print("📤 ENVIANDO:", data)
+
+    try:
+        headers = {"Authorization": token, "Content-Type": "application/json"}
+        requests.post(BACKEND_URL, json=data, headers=headers, timeout=10)
+    except Exception as e:
+        print("⚠ Error enviando al backend:", e)
+
+    return data
+
 
 # =====================================================
-# 🔥 ENDPOINT PRINCIPAL
+# 🔥 ENDPOINT
 # =====================================================
 @app.post("/clasificar_gasto", response_model=ClasificacionRespuesta)
 async def clasificar_endpoint(payload: MensajeUsuario, authorization: str = Header(...)):
@@ -277,16 +284,13 @@ async def clasificar_endpoint(payload: MensajeUsuario, authorization: str = Head
     if not authorization.startswith("Bearer "):
         raise HTTPException(401, "Token inválido")
 
-    # Bloqueo de groserías
     if contiene_groserias_IA(payload.mensaje):
         raise HTTPException(400, "El mensaje contiene lenguaje ofensivo")
 
-    # Bloqueo de doble sentido mexicano
     if contiene_doble_sentido_IA(payload.mensaje):
-        raise HTTPException(400, "El mensaje contiene doble sentido. Por favor, describe el gasto sin modismos.")
+        raise HTTPException(400, "El mensaje contiene doble sentido")
 
     return clasificar_gasto(payload.mensaje, authorization)
-
 
 
 @app.get("/")
