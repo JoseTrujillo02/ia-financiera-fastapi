@@ -110,13 +110,37 @@ def contiene_doble_sentido_IA(texto: str) -> bool:
         return False
 
     prompt = f"""
-    Determina si el mensaje contiene doble sentido, frases con
-    insinuación sexual indirecta, albures mexicanos o lenguaje ambiguo.
+    Analiza si el mensaje contiene DOBLE SENTIDO típico del español de México,
+    incluyendo albures, insinuaciones sexuales indirectas, frases con doble
+    interpretación o juegos de palabras con connotación sexual.
 
-    Responde SOLO JSON:
-    {{
+    EJEMPLOS QUE DEBEN SER DETECTADOS COMO doble_sentido = true:
+    - "me la dejaron ir"
+    - "me la metieron"
+    - "me dieron por atrás"
+    - "me la aplicaron"
+    - "me clavaron"
+    - "me lo ensartaron"
+    - "me dieron hasta para llevar"
+    - "me chingué"
+    - "me la dejaron ir con 100 pesos"
+    - "estaba bien dura"
+    - "me andaban tanteando"
+
+    EJEMPLOS QUE NO DEBEN DETECTARSE COMO doble sentido:
+    - "compré fruta"
+    - "pagué la luz"
+    - "deposité dinero"
+    - "llené el tanque"
+    - "compré madera"
+
+    INSTRUCCIONES:
+    • NO inventes información.
+    • NO hagas explicaciones.
+    • Responde SOLO en JSON estricto:
+    {
         "doble_sentido": true or false
-    }}
+    }
 
     Mensaje: "{texto}"
     """
@@ -126,7 +150,7 @@ def contiene_doble_sentido_IA(texto: str) -> bool:
             model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
-            max_tokens=20
+            max_tokens=30
         )
 
         raw = res.choices[0].message.content.strip()
@@ -137,6 +161,7 @@ def contiene_doble_sentido_IA(texto: str) -> bool:
 
     except:
         return False
+
 
 
 # =====================================================
